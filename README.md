@@ -162,3 +162,4 @@ The core application is functional! The next phase will focus on:
 - Adding advanced calendar features
 - Performance optimization and error handling
 - Production deployment configuration
+# x402-firecrawl
