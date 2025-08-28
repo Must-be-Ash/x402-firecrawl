@@ -187,13 +187,19 @@ export function NewsProvider({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: Failed to fetch news`);
+        const errorMessage = typeof errorData.error === 'string' 
+          ? errorData.error 
+          : errorData.message || `HTTP ${response.status}: Failed to fetch news`;
+        throw new Error(errorMessage);
       }
 
       const data: NewsResponse = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch news');
+        const errorMessage = typeof data.error === 'string' 
+          ? data.error 
+          : data.error?.message || 'Failed to fetch news';
+        throw new Error(errorMessage);
       }
 
       dispatch({
