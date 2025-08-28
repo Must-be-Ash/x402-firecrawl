@@ -41,7 +41,12 @@ export interface NewsResponse {
     cached: boolean;
     totalCount: number;
   };
-  error?: string;
+  error?: string | {
+    code: ErrorCode;
+    message: string;
+    details?: unknown;
+    retryAfter?: number;
+  };
 }
 
 export interface ErrorResponse {

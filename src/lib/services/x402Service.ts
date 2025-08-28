@@ -160,6 +160,7 @@ async function searchNewsWithX402Fetch(query: string, options?: {
 
   // x402-fetch needs walletClient with chain info for chainId detection
   const maxValue = BigInt(1.0 * 10 ** 6); // Allow up to $1.00 USDC payments
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fetchWithPayment = wrapFetchWithPayment(fetch, walletClient as any, maxValue);
   
   const searchOptions = {
@@ -249,6 +250,7 @@ export async function searchNews(query: string, options?: {
       // Both approaches failed - update failure count
       failureCount++;
       lastFailureTime = now;
+      console.error('Manual payment approach also failed:', manualError);
       throw new Error(`Both x402-fetch and manual payment approaches failed. System will pause for ${CIRCUIT_BREAKER_DELAY/1000}s to prevent rapid API calls.`);
     }
   }

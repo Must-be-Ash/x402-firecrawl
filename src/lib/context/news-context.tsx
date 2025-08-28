@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useContext, useReducer, ReactNode, useCallback, useEffect } from 'react';
-import { NewsArticle, ErrorCode } from '@/lib/types/news';
+import { createContext, useContext, useReducer, ReactNode, useCallback, useEffect, useRef } from 'react';
+import { NewsArticle, ErrorCode, NewsResponse } from '@/lib/types/news';
 import { formatDateForAPI } from '@/lib/utils/date-utils';
 import { API_ROUTES } from '@/lib/utils/constants';
 
@@ -19,16 +19,6 @@ interface NewsState {
   retryCount: number;
 }
 
-interface NewsResponse {
-  success: boolean;
-  data: {
-    date: string;
-    articles: NewsArticle[];
-    cached: boolean;
-    totalCount: number;
-  };
-  error?: string;
-}
 
 type NewsAction =
   | { type: 'SET_LOADING'; payload: boolean }
@@ -161,13 +151,38 @@ export function NewsProvider({
     timezone: initialTimezone,
   });
 
+  // Track active requests to prevent duplicates and rapid calls
+  const activeRequestRef = useRef<string | null>(null);
+  const lastRequestTimeRef = useRef<number>(0);
+  const DEBOUNCE_DELAY = 500; // 500ms debounce
+
   // Fetch news for a specific date
   const fetchNews = useCallback(async (date: Date, force: boolean = false) => {
-    // Don't fetch if already loading or if we already have data for this date (unless forced)
-    if (state.isLoading || (!force && state.articles.length > 0 && 
-        formatDateForAPI(state.selectedDate) === formatDateForAPI(date))) {
+    const dateString = formatDateForAPI(date);
+    const now = Date.now();
+    
+    // Implement debouncing to prevent rapid calls
+    if (!force && (now - lastRequestTimeRef.current) < DEBOUNCE_DELAY) {
+      console.log('Request debounced, too soon since last request');
       return;
     }
+    
+    // Prevent duplicate requests for the same date
+    if (activeRequestRef.current === dateString) {
+      console.log(`Request already active for ${dateString}, skipping`);
+      return;
+    }
+    
+    // Don't fetch if already loading or if we already have data for this date (unless forced)
+    if (state.isLoading || (!force && state.articles.length > 0 && 
+        formatDateForAPI(state.selectedDate) === dateString)) {
+      console.log(`Already have data for ${dateString} or loading, skipping`);
+      return;
+    }
+    
+    // Set active request and update timing
+    activeRequestRef.current = dateString;
+    lastRequestTimeRef.current = now;
 
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'CLEAR_ERROR' });
@@ -196,10 +211,22 @@ export function NewsProvider({
       const data: NewsResponse = await response.json();
 
       if (!data.success) {
-        const errorMessage = typeof data.error === 'string' 
-          ? data.error 
-          : data.error?.message || 'Failed to fetch news';
-        throw new Error(errorMessage);
+        // Handle both string error and structured ErrorResponse format
+        let errorMessage = 'Failed to fetch news';
+        let errorCode: ErrorCode | undefined;
+        
+        if (typeof data.error === 'string') {
+          errorMessage = data.error;
+        } else if (data.error && typeof data.error === 'object') {
+          const errorObj = data.error as { message: string; code?: ErrorCode };
+          errorMessage = errorObj.message;
+          errorCode = errorObj.code;
+        }
+        
+        const error = new Error(errorMessage);
+        // Attach error code to the error object for later use
+        (error as Error & { code?: ErrorCode }).code = errorCode;
+        throw error;
       }
 
       dispatch({
@@ -225,19 +252,31 @@ export function NewsProvider({
       if (error instanceof Error) {
         errorMessage = error.message;
         
-        // Determine error code based on error message
-        if (errorMessage.includes('INVALID_DATE')) {
-          errorCode = ErrorCode.INVALID_DATE;
-        } else if (errorMessage.includes('NO_DATA_FOUND')) {
-          errorCode = ErrorCode.NO_DATA_FOUND;
-        } else if (errorMessage.includes('PAYMENT_FAILED')) {
-          errorCode = ErrorCode.PAYMENT_FAILED;
-        } else if (errorMessage.includes('FIRECRAWL_ERROR')) {
-          errorCode = ErrorCode.FIRECRAWL_ERROR;
-        } else if (errorMessage.includes('DATABASE_ERROR')) {
-          errorCode = ErrorCode.DATABASE_ERROR;
-        } else if (errorMessage.includes('RATE_LIMITED')) {
-          errorCode = ErrorCode.RATE_LIMITED;
+        // Check if error code was attached to the error object
+        const errorWithCode = error as Error & { code?: ErrorCode };
+        if (errorWithCode.code && Object.values(ErrorCode).includes(errorWithCode.code)) {
+          errorCode = errorWithCode.code;
+        } else {
+          // Fallback: Determine error code based on error message
+          if (errorMessage.includes('INVALID_DATE')) {
+            errorCode = ErrorCode.INVALID_DATE;
+          } else if (errorMessage.includes('NO_DATA_FOUND')) {
+            errorCode = ErrorCode.NO_DATA_FOUND;
+          } else if (errorMessage.includes('PAYMENT_FAILED') || errorMessage.includes('payment')) {
+            errorCode = ErrorCode.PAYMENT_FAILED;
+          } else if (errorMessage.includes('FIRECRAWL_ERROR')) {
+            errorCode = ErrorCode.FIRECRAWL_ERROR;
+          } else if (errorMessage.includes('DATABASE_ERROR')) {
+            errorCode = ErrorCode.DATABASE_ERROR;
+          } else if (errorMessage.includes('RATE_LIMITED') || errorMessage.includes('cooling down') || errorMessage.includes('wait')) {
+            errorCode = ErrorCode.RATE_LIMITED;
+            // Extract wait time from circuit breaker message for better UX
+            const waitMatch = errorMessage.match(/wait (\d+) seconds/);
+            if (waitMatch) {
+              const waitTime = parseInt(waitMatch[1]);
+              errorMessage = `System is cooling down to prevent rapid API calls. Please wait ${waitTime} seconds before trying again.`;
+            }
+          }
         }
       }
 
@@ -245,8 +284,12 @@ export function NewsProvider({
         type: 'SET_ERROR',
         payload: { error: errorMessage, code: errorCode },
       });
+    } finally {
+      // Always clear the active request when done
+      activeRequestRef.current = null;
     }
-  }, [state.isLoading, state.articles.length, state.selectedDate, state.timezone]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.timezone]); // Only depend on timezone to avoid infinite re-renders
 
   // Select a new date
   const selectDate = useCallback((date: Date) => {
@@ -299,10 +342,11 @@ export function NewsProvider({
 
   // Auto-fetch when selectedDate or timezone changes
   useEffect(() => {
-    if (state.selectedDate) {
+    if (state.selectedDate && !state.isLoading) {
       fetchNews(state.selectedDate);
     }
-  }, [state.selectedDate, state.timezone, fetchNews]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.selectedDate, state.timezone]); // Remove fetchNews from dependencies to prevent infinite loop
 
   // Initialize available dates on mount
   useEffect(() => {
