@@ -4,24 +4,39 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "type-check": "tsc --noEmit",
+    "db:setup": "node scripts/setup-db.js",
+    "clean": "rm -rf .next out",
+    "preview": "npm run build && npm run start"
   },
   "dependencies": {
+    "@coinbase/coinbase-sdk": "^0.25.0",
+    "@coinbase/x402": "^0.5.1",
+    "@types/jsonwebtoken": "^9.0.10",
+    "date-fns": "^4.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.19.0",
+    "next": "15.5.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.2"
+    "viem": "^2.36.0",
+    "x402-fetch": "^0.5.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/mongodb": "^4.0.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
