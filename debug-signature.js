@@ -29,57 +29,47 @@ async function debugSignature() {
     console.log('Address:', account.address);
     console.log('Chain ID:', base.id); // Should be 8453 for Base mainnet
 
-    // Step 1: Get payment requirements
-    const url = 'https://api.firecrawl.dev/v1/x402/search';
-    const requestBody = {
-      query: 'test news',
-      limit: 1,
-      scrapeOptions: {
-        formats: ['markdown'],
-        onlyMainContent: true
-      }
-    };
-
-    console.log('\n📋 Getting payment requirements...');
-    const initialResponse = await fetch(url, {
+    // Get payment requirements from Firecrawl
+    const response = await fetch('https://api.firecrawl.dev/v1/x402/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify({ query: 'test', limit: 1 })
     });
 
-    if (initialResponse.status !== 402) {
-      console.error('❌ Expected 402, got:', initialResponse.status);
+    if (response.status !== 402) {
+      console.log('❌ Expected 402, got:', response.status);
       return;
     }
 
-    const paymentData = await initialResponse.json();
-    const requirement = paymentData.accepts[0];
+    const { accepts } = await response.json();
+    const paymentRequirements = accepts[0];
     
-    console.log('Payment requirement received:');
-    console.log('- Amount:', requirement.maxAmountRequired, '(0.01 USDC)');
-    console.log('- PayTo:', requirement.payTo);
-    console.log('- Asset:', requirement.asset);
-    console.log('- Network:', requirement.network);
-    console.log('- Extra:', JSON.stringify(requirement.extra));
+    console.log('Payment requirements:', paymentRequirements);
 
-    // Step 2: Create manual payment signature
-    console.log('\n🔐 Creating payment signature...');
-    
+    // Create authorization object
     const now = Math.floor(Date.now() / 1000);
-    const validAfter = (now - 300).toString(); // 5 minutes before now
-    const validBefore = (now + 300).toString(); // 5 minutes from now
-    const nonce = `0x${randomBytes(32).toString('hex')}`;
-
-    // EIP-712 domain for USDC on Base
-    const domain = {
-      name: requirement.extra.name, // "USD Coin"
-      version: requirement.extra.version, // "2"
-      chainId: base.id, // 8453 for Base mainnet
-      verifyingContract: requirement.asset,
+    const authorization = {
+      from: account.address,
+      to: paymentRequirements.payTo,
+      value: paymentRequirements.maxAmountRequired,
+      validAfter: (now - 600).toString(), // 10 minutes ago
+      validBefore: (now + 3600).toString(), // 1 hour from now
+      nonce: `0x${randomBytes(32).toString('hex')}`
     };
 
-    console.log('EIP-712 Domain:', domain);
+    console.log('Authorization object:', authorization);
 
+    // Create EIP-712 domain
+    const domain = {
+      name: paymentRequirements.extra.name, // "USD Coin"
+      version: paymentRequirements.extra.version, // "2"
+      chainId: base.id, // 8453
+      verifyingContract: paymentRequirements.asset // USDC contract address
+    };
+
+    console.log('EIP-712 domain:', domain);
+
+    // Create types for EIP-3009
     const types = {
       TransferWithAuthorization: [
         { name: 'from', type: 'address' },
@@ -87,84 +77,63 @@ async function debugSignature() {
         { name: 'value', type: 'uint256' },
         { name: 'validAfter', type: 'uint256' },
         { name: 'validBefore', type: 'uint256' },
-        { name: 'nonce', type: 'bytes32' },
-      ],
+        { name: 'nonce', type: 'bytes32' }
+      ]
     };
 
-    const message = {
-      from: account.address,
-      to: requirement.payTo,
-      value: requirement.maxAmountRequired,
-      validAfter,
-      validBefore,
-      nonce,
-    };
-
-    console.log('Message to sign:', message);
-
-    // Sign the message
+    console.log('Signing authorization with EIP-712...');
+    
+    // Sign the authorization
     const signature = await client.signTypedData({
       domain,
       types,
       primaryType: 'TransferWithAuthorization',
-      message,
+      message: authorization
     });
 
-    console.log('✅ Signature created:', signature.length, 'chars');
+    console.log('✅ Signature created:', signature);
 
-    // Step 3: Create payment payload
+    // Create payment payload
     const paymentPayload = {
-      x402Version: paymentData.x402Version,
-      scheme: requirement.scheme,
-      network: requirement.network,
+      x402Version: 1,
+      scheme: "exact",
+      network: paymentRequirements.network,
       payload: {
         signature,
-        authorization: message,
-      },
+        authorization
+      }
     };
 
-    const paymentHeader = Buffer.from(JSON.stringify(paymentPayload)).toString('base64');
-    console.log('✅ Payment header created:', paymentHeader.length, 'chars');
+    console.log('Payment payload:', paymentPayload);
 
-    // Step 4: Make payment request
-    console.log('\n💳 Making payment request...');
-    const paymentResponse = await fetch(url, {
+    // Create payment header
+    const paymentHeader = btoa(JSON.stringify(paymentPayload));
+    console.log('Payment header (base64):', paymentHeader.substring(0, 100) + '...');
+
+    // Test payment with manual header
+    console.log('\n🧪 Testing payment with manual header...');
+    const paymentResponse = await fetch('https://api.firecrawl.dev/v1/x402/search', {
       method: 'POST',
-      headers: {
+      headers: { 
         'Content-Type': 'application/json',
-        'X-PAYMENT': paymentHeader,
+        'X-PAYMENT': paymentHeader
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify({ query: 'test', limit: 1 })
     });
 
     console.log('Payment response status:', paymentResponse.status);
-    
-    if (paymentResponse.status === 200) {
-      console.log('✅ Payment successful!');
+    console.log('Payment response headers:', Object.fromEntries(paymentResponse.headers.entries()));
+
+    if (paymentResponse.ok) {
       const data = await paymentResponse.json();
-      console.log('Data received:', {
-        success: data.success,
-        resultsCount: data.data?.web?.length || 0
-      });
+      console.log('✅ PAYMENT SUCCESS! Response:', data);
     } else {
-      const errorText = await paymentResponse.text();
-      console.log('❌ Payment failed');
-      console.log('Error response:', errorText);
-      
-      // Check if it's a verification error
-      try {
-        const errorData = JSON.parse(errorText);
-        if (errorData.error && typeof errorData.error === 'string') {
-          console.log('🔍 Specific error:', errorData.error);
-        }
-      } catch (e) {
-        // Error response is not JSON
-      }
+      const errorData = await paymentResponse.json();
+      console.log('❌ Payment failed. Error:', errorData);
     }
 
   } catch (error) {
-    console.error('❌ Debug failed:', error.message);
-    console.error('Stack:', error.stack);
+    console.error('❌ Error during signature debugging:', error);
   }
 }
 

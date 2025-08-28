@@ -1,6 +1,6 @@
 import { x402Config } from '@/config/x402';
 import { FirecrawlSearchResponse } from '@/lib/types/news';
-import { createWalletClient, http } from 'viem';
+import { createWalletClient, http, publicActions } from 'viem';
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from 'viem/chains';
 import { wrapFetchWithPayment } from "x402-fetch";
@@ -156,12 +156,16 @@ async function searchNewsWithX402Fetch(query: string, options?: {
     account,
     chain: base,
     transport: http()
-  });
+  }).extend(publicActions);
 
   // x402-fetch needs walletClient with chain info for chainId detection
-  const maxValue = BigInt(1.0 * 10 ** 6); // Allow up to $1.00 USDC payments
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fetchWithPayment = wrapFetchWithPayment(fetch, walletClient as any, maxValue);
+  // Per X402 docs: wrapFetchWithPayment takes only 2 required parameters: fetch and walletClient
+  // Optional third parameter is maxValue as a BigInt, fourth is paymentRequirementsSelector function
+  const fetchWithPayment = wrapFetchWithPayment(
+    fetch, 
+    walletClient as any, // Type assertion due to viem/x402 version compatibility
+    BigInt(1.0 * 10 ** 6) // Allow up to $1.00 USDC payments
+  );
   
   const searchOptions = {
     query,
