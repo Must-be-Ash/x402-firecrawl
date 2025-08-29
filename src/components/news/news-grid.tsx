@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { NewsArticle } from '@/lib/types/news';
 import NewsCard, { NewsCardSkeleton } from '@/components/ui/news-card';
+import { formatDisplayDate } from '@/lib/utils/date-utils';
 
 interface NewsGridProps {
   articles: NewsArticle[];
@@ -168,7 +169,7 @@ export function CompactNewsGrid({ articles, isLoading, error }: NewsGridProps) {
             </p>
             {article.publishedDate && (
               <time className="text-xs text-gray-500">
-                {article.publishedDate.toLocaleDateString()}
+                {formatDisplayDate(article.publishedDate)}
               </time>
             )}
           </div>

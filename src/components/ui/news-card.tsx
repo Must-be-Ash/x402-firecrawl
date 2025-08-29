@@ -9,7 +9,7 @@ interface NewsCardProps {
     url: string;
     favicon?: string;
   };
-  publishedDate?: Date;
+  publishedDate?: Date | string;
   imageUrl?: string;
   onClick?: () => void;
 }
@@ -74,10 +74,10 @@ export default function NewsCard({
             <>
               <span className="text-gray-400">•</span>
               <time
-                dateTime={publishedDate.toISOString()}
+                dateTime={publishedDate instanceof Date ? publishedDate.toISOString() : new Date(publishedDate).toISOString()}
                 className="text-sm text-gray-500"
               >
-                {formatDisplayDate(publishedDate)}
+                {formatDisplayDate(publishedDate instanceof Date ? publishedDate : new Date(publishedDate))}
               </time>
             </>
           )}

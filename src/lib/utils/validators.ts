@@ -27,7 +27,7 @@ export const newsArticleSchema = z.object({
     url: z.string().url('Source URL must be valid'),
     favicon: z.string().url().optional(),
   }),
-  publishedDate: z.date().optional(),
+  publishedDate: z.union([z.date(), z.string()]).optional(),
   summary: z.string().min(1, 'Summary is required'),
   imageUrl: z.string().url().optional(),
   metadata: z.object({

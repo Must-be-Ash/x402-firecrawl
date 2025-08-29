@@ -163,7 +163,8 @@ async function searchNewsWithX402Fetch(query: string, options?: {
   // Optional third parameter is maxValue as a BigInt, fourth is paymentRequirementsSelector function
   const fetchWithPayment = wrapFetchWithPayment(
     fetch, 
-    walletClient as any, // Type assertion due to viem/x402 version compatibility
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    walletClient as any, // Type assertion needed for viem/x402-fetch version compatibility
     BigInt(1.0 * 10 ** 6) // Allow up to $1.00 USDC payments
   );
   

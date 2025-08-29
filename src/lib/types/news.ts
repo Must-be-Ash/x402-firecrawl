@@ -8,7 +8,7 @@ export interface NewsArticle {
     url: string;
     favicon?: string;
   };
-  publishedDate?: Date;
+  publishedDate?: Date | string;
   summary: string; // From Firecrawl summary format
   imageUrl?: string;
   metadata: {

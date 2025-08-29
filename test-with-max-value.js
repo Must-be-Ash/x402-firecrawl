@@ -71,7 +71,8 @@ async function testWithMaxValue() {
         try {
           const decoded = JSON.parse(atob(paymentResponseHeader));
           console.log('Payment details:', decoded);
-        } catch (e) {
+        } catch (error) {
+          console.log('Failed to decode payment response:', error.message);
           console.log('Payment response header (base64):', paymentResponseHeader);
         }
       }
