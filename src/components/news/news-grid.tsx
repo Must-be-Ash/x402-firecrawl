@@ -13,7 +13,7 @@ export default function NewsGrid({ articles, isLoading, error }: NewsGridProps) 
   // Loading state
   if (isLoading) {
     return (
-      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {Array(8).fill(0).map((_, index) => (
           <NewsCardSkeleton key={index} />
         ))}
@@ -96,7 +96,7 @@ export default function NewsGrid({ articles, isLoading, error }: NewsGridProps) 
       </div>
 
       {/* News grid */}
-      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {articles.map((article, index) => (
           <NewsCard
             key={`${article.metadata.firecrawlId}-${index}`}

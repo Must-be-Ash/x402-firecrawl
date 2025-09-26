@@ -7,18 +7,79 @@ export function parseFirecrawlResponse(
 ): NewsArticle[] {
   // Type guard to check if response has expected structure
   if (!response || typeof response !== 'object' || !('success' in response)) {
+    console.log('DEBUG: Invalid response structure');
     return [];
   }
 
-  const typedResponse = response as { success: boolean; data?: { web?: FirecrawlWebResult[] } };
-  if (!typedResponse.success || !typedResponse.data || !typedResponse.data.web) {
+  const typedResponse = response as { 
+    success: boolean; 
+    data?: { 
+      web?: unknown[]; 
+      [key: string]: unknown; 
+    } | Record<string, unknown>; 
+  };
+  if (!typedResponse.success) {
+    console.log('DEBUG: Response success = false');
+    return [];
+  }
+
+  let webResults: FirecrawlWebResult[] = [];
+
+  // Handle regular Firecrawl format: data.web array
+  const data = typedResponse.data;
+  if (data && typeof data === 'object' && 'web' in data && Array.isArray((data as { web: unknown[] }).web)) {
+    webResults = (data as { web: FirecrawlWebResult[] }).web;
+    console.log('DEBUG: Using regular Firecrawl format with data.web array');
+  }
+  // Handle x402 format: indexed properties at root level
+  else if (data || Object.keys(typedResponse).some(key => /^\d+$/.test(key))) {
+    console.log('DEBUG: Detected x402 format, extracting indexed properties');
+    const dataObj = data || typedResponse;
+    
+    // Extract numbered properties (0, 1, 2, etc.)
+    for (let i = 0; i < 50; i++) { // Check up to 50 items
+      if (dataObj && typeof dataObj === 'object') {
+        const item = (dataObj as Record<string, unknown>)[i.toString()];
+        if (item && typeof item === 'object') {
+          // Convert x402 format to FirecrawlWebResult format
+          const x402Item = item as Record<string, unknown>;
+          const firecrawlItem: FirecrawlWebResult = {
+            title: x402Item.title as string || '',
+            description: x402Item.description as string || '',
+            url: x402Item.url as string || '',
+            markdown: '',
+            html: '',
+            rawHtml: '',
+            summary: x402Item.description as string || '',
+            links: [],
+            metadata: {
+              title: x402Item.title as string || '',
+              description: x402Item.description as string || '',
+              sourceURL: x402Item.url as string || '',
+              statusCode: 200,
+              ...(x402Item.metadata as Record<string, unknown> || {})
+            }
+          };
+          webResults.push(firecrawlItem);
+        } else {
+          break; // Stop when we hit missing sequential numbers
+        }
+      } else {
+        break;
+      }
+    }
+    console.log(`DEBUG: Extracted ${webResults.length} items from x402 indexed format`);
+  }
+
+  if (webResults.length === 0) {
+    console.log('DEBUG: No web results found in any format. Response structure:', Object.keys(typedResponse));
     return [];
   }
 
   const articles: NewsArticle[] = [];
   const seenHashes = new Set<string>();
 
-  for (const item of typedResponse.data.web) {
+  for (const item of webResults) {
     try {
       const article = parseFirecrawlWebResult(item);
       
@@ -34,18 +95,54 @@ export function parseFirecrawlResponse(
     }
   }
 
-  console.log(`Parsed ${articles.length} unique articles from ${typedResponse.data.web.length} results`);
-  return articles;
+  // Sort articles by source quality (prioritize legitimate news sources)
+  const sortedArticles = articles.sort((a, b) => getSourceQualityScore(b.source.url) - getSourceQualityScore(a.source.url));
+
+  console.log(`Parsed ${sortedArticles.length} unique articles from ${webResults.length} results`);
+  
+  // Debug: Log why articles might be getting filtered out
+  if (webResults.length > 0 && articles.length === 0) {
+    console.log('DEBUG: No articles parsed. Checking first web result for issues:');
+    const firstItem = webResults[0];
+    console.log({
+      title: firstItem?.title ? `"${firstItem.title}"` : 'MISSING',
+      url: firstItem?.url ? `"${firstItem.url}"` : 'MISSING', 
+      summary: firstItem?.summary ? `"${firstItem.summary}"` : 'MISSING',
+      description: firstItem?.description ? `"${firstItem.description}"` : 'MISSING',
+      hasMetadata: !!firstItem?.metadata,
+      metadataKeys: firstItem?.metadata ? Object.keys(firstItem.metadata) : 'no metadata',
+      allKeys: Object.keys(firstItem || {})
+    });
+  }
+  
+  return sortedArticles;
 }
 
 function parseFirecrawlWebResult(item: FirecrawlWebResult): NewsArticle {
+  // Handle both regular Firecrawl format and x402 format
+  const title = item.title;
+  const url = item.url;
+  const summary = item.summary || item.description; // x402 uses 'description' instead of 'summary'
+  const description = item.description;
+  
   // Validate required fields
-  if (!item.title || !item.url || !item.summary) {
-    throw new Error('Missing required fields: title, url, or summary');
+  if (!title || !url || !summary) {
+    throw new Error(`Missing required fields: title=${!!title}, url=${!!url}, summary/description=${!!summary}`);
+  }
+
+  // Filter out news homepage/directory pages - we want specific articles
+  if (isNewsHomepageOrDirectory(title, url, summary)) {
+    throw new Error('Filtered out: appears to be homepage or directory rather than specific article');
+  }
+
+  // Filter out low-quality or non-news sources for important news (less aggressive now)
+  if (isLowQualitySource(title, url, summary)) {
+    console.log('DEBUG: Filtered low-quality source:', url);
+    throw new Error('Filtered out: low-quality or non-primary news source');
   }
 
   // Extract source name from URL
-  const sourceName = extractSourceName(item.url);
+  const sourceName = extractSourceName(url);
   
   // Find favicon URL
   const favicon = extractFavicon(item);
@@ -57,21 +154,21 @@ function parseFirecrawlWebResult(item: FirecrawlWebResult): NewsArticle {
   const imageUrl = extractImageUrl(item);
   
   // Generate content hash for deduplication
-  const contentHash = generateContentHash(item.title, item.summary, item.url);
+  const contentHash = generateContentHash(title, summary, url);
   
   // Create unique Firecrawl ID
   const firecrawlId = (item.metadata?.scrapeId as string) || `fc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
   return {
-    headline: sanitizeString(item.title),
-    description: sanitizeString(item.description || item.summary),
+    headline: sanitizeString(title),
+    description: sanitizeString(description || summary),
     source: {
       name: sourceName,
-      url: item.url,
+      url: url,
       favicon: favicon
     },
     publishedDate: publishedDate,
-    summary: sanitizeString(item.summary),
+    summary: sanitizeString(summary),
     imageUrl: imageUrl,
     metadata: {
       firecrawlId,
@@ -186,6 +283,186 @@ function extractImageUrl(item: FirecrawlWebResult): string | undefined {
 function generateContentHash(title: string, summary: string, url: string): string {
   const content = `${title}|${summary}|${url}`;
   return crypto.createHash('md5').update(content).digest('hex');
+}
+
+function isNewsHomepageOrDirectory(title: string, url: string, summary: string): boolean {
+  // Convert to lowercase for easier matching
+  const lowerTitle = title.toLowerCase();
+  const lowerUrl = url.toLowerCase();
+  const lowerSummary = summary.toLowerCase();
+  
+  // Check if this is a homepage or directory rather than specific article
+  const homepageIndicators = [
+    // Generic homepage/directory titles (only very obvious ones)
+    'breaking news - top', 'news home', 'home page',
+    'headlines and stories', 'news | weather',
+    'source for local news',
+    
+    // URL patterns that indicate directories/homepages (only root URLs)
+    '://vancouver.citynews.ca/',
+    '://www.ctvnews.ca/vancouver/',
+    '://vancouversun.com/category/',
+    '://vancouversun.com/$', // Only exact root, not subpages
+    '://globalnews.ca/bc/',
+    '://www.vancouverisawesome.com/',
+    '://dailyhive.com/',
+    '://www.reddit.com/r/vancouver/',
+    
+    // Summary patterns that indicate general sites
+    'local breaking news, live updates',
+    "vancouver source for local news",
+    "wondering what is going on in vancouver",
+    'read latest breaking news, updates',
+  ];
+  
+  // Check against all indicators
+  for (const indicator of homepageIndicators) {
+    if (lowerTitle.includes(indicator) || lowerUrl.includes(indicator) || lowerSummary.includes(indicator)) {
+      return true;
+    }
+  }
+  
+  // Check for very short URLs that are likely homepages
+  if (lowerUrl.endsWith('.com/') || lowerUrl.endsWith('.ca/') || lowerUrl.includes('/category/')) {
+    return true;
+  }
+  
+  // Check if title is too generic (likely a site name rather than article)
+  const genericTitlePatterns = [
+    /^[a-z\s]+:\s*home$/i,
+    /^[a-z\s]+news$/i,
+    /^breaking news$/i,
+    /^latest stories$/i,
+  ];
+  
+  for (const pattern of genericTitlePatterns) {
+    if (pattern.test(title)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+function isLowQualitySource(title: string, url: string, summary: string): boolean {
+  const lowerUrl = url.toLowerCase();
+  const lowerTitle = title.toLowerCase();
+  
+  // Filter out YouTube videos since we're targeting text news sources
+  if (lowerUrl.includes('youtube.com/watch') || lowerUrl.includes('youtu.be/')) {
+    return true;
+  }
+  
+  // Filter out video/program pages that aren't articles
+  if (lowerUrl.includes('/video/') || lowerUrl.includes('/watch/') || lowerUrl.includes('/player/')) {
+    return true;
+  }
+  
+  // Filter out obvious social media sources
+  const socialMediaSources = [
+    'reddit.com',
+    'twitter.com',
+    'x.com',
+    'facebook.com',
+    'instagram.com',
+    'tiktok.com',
+  ];
+  
+  for (const source of socialMediaSources) {
+    if (lowerUrl.includes(source)) {
+      return true;
+    }
+  }
+  
+  // Filter out generic video content indicators
+  const videoIndicators = [
+    'watch online',
+    'video online',
+    'duration live',
+  ];
+  
+  for (const indicator of videoIndicators) {
+    if (lowerTitle.includes(indicator) || summary.toLowerCase().includes(indicator)) {
+      return true;
+    }
+  }
+  
+  // Filter out shopping/sales content that isn't news
+  const shoppingIndicators = [
+    'best labour day sales',
+    'weekend sales to shop',
+    'amazing deals',
+    'shopping deals',
+    'black friday',
+    'cyber monday',
+    'sales canada',
+    'retailers and',
+  ];
+  
+  for (const indicator of shoppingIndicators) {
+    if (lowerTitle.includes(indicator) || summary.toLowerCase().includes(indicator)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+function getSourceQualityScore(url: string): number {
+  const lowerUrl = url.toLowerCase();
+  
+  // Tier 1: Major Canadian news outlets (highest priority)
+  const tier1Sources = [
+    'cbc.ca',
+    'ctvnews.ca', 
+    'globalnews.ca',
+    'cp24.com',
+    'theglobeandmail.com',
+    'nationalpost.com',
+  ];
+  
+  // Tier 2: Regional Canadian news outlets
+  const tier2Sources = [
+    'vancouversun.com',
+    'theprovince.com',
+    'vancouverisawesome.com',
+    'dailyhive.com',
+    'richmond-news.com',
+    'burnabynow.com',
+    'nsnews.com',
+  ];
+  
+  // Tier 3: International major news (still good quality)
+  const tier3Sources = [
+    'reuters.com',
+    'ap.org',
+    'bbc.com',
+    'bbc.co.uk',
+    'cnn.com',
+    'nytimes.com',
+  ];
+  
+  // Check source tiers
+  for (const source of tier1Sources) {
+    if (lowerUrl.includes(source)) {
+      return 100; // Highest priority
+    }
+  }
+  
+  for (const source of tier2Sources) {
+    if (lowerUrl.includes(source)) {
+      return 80; // High priority
+    }
+  }
+  
+  for (const source of tier3Sources) {
+    if (lowerUrl.includes(source)) {
+      return 60; // Medium priority
+    }
+  }
+  
+  // Lower priority for other sources
+  return 20;
 }
 
 export function validateNewsArticle(article: unknown): article is NewsArticle {

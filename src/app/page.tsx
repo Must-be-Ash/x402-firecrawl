@@ -11,7 +11,9 @@ const DEFAULT_TIMEZONE = 'America/Vancouver';
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = getTodayInTimezone(DEFAULT_TIMEZONE);
-    return new Date(today);
+    console.log('DEBUG: Home page initializing with date:', today);
+    // Fix: Create Date object with explicit timezone to avoid UTC conversion issues
+    return new Date(today + 'T12:00:00'); // Add noon time to avoid timezone edge cases
   });
   
   const [timezone] = useState(DEFAULT_TIMEZONE);

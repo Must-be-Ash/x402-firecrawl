@@ -14,6 +14,19 @@ interface NewsCardProps {
   onClick?: () => void;
 }
 
+// Clean up headline by removing dates and common unwanted patterns
+function cleanHeadline(headline: string): string {
+  return headline
+    // Remove dates in format YYYY-MM-DD or similar
+    .replace(/\s*-?\s*\d{4}-\d{1,2}-\d{1,2}\s*$/g, '')
+    .replace(/\s*\|\s*\d{4}-\d{1,2}-\d{1,2}\s*$/g, '')
+    // Remove "Today's top headlines from..." patterns
+    .replace(/^Today's\s+(top\s+|evening\s+|morning\s+)?headlines\s+from\s+/i, '')
+    // Remove trailing " - YYYY-MM-DD" patterns
+    .replace(/\s*-\s*\d{4}-\d{1,2}-\d{1,2}$/g, '')
+    .trim();
+}
+
 export default function NewsCard({
   headline,
   summary,
@@ -22,6 +35,11 @@ export default function NewsCard({
   imageUrl,
   onClick,
 }: NewsCardProps) {
+  // Use summary as the headline since it contains the actual news content
+  // The headline often contains generic page titles like "Today's headlines from..."
+  const actualHeadline = cleanHeadline(summary);
+  const cleanedHeadline = actualHeadline;
+  
   const handleClick = () => {
     if (onClick) {
       onClick();
@@ -32,7 +50,7 @@ export default function NewsCard({
 
   return (
     <article
-      className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer border border-gray-200 overflow-hidden"
+      className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer border border-gray-200 overflow-hidden min-h-[400px] flex flex-col"
       onClick={handleClick}
       role="button"
       tabIndex={0}
@@ -42,7 +60,7 @@ export default function NewsCard({
           handleClick();
         }
       }}
-      aria-label={`Read article: ${headline}`}
+      aria-label={`Read article: ${cleanedHeadline}`}
     >
       {imageUrl && (
         <div className="w-full h-48 bg-gray-200 overflow-hidden">
@@ -56,7 +74,7 @@ export default function NewsCard({
         </div>
       )}
       
-      <div className="p-6">
+      <div className="p-6 flex flex-col flex-1">
         <div className="flex items-center gap-2 mb-3">
           {source.favicon && (
             <Image
@@ -83,34 +101,11 @@ export default function NewsCard({
           )}
         </div>
 
-        <h2 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2 leading-tight">
-          {headline}
+        <h2 className="text-lg font-bold text-gray-900 mb-4 line-clamp-6 leading-tight flex-1">
+          {cleanedHeadline}
         </h2>
 
-        <p className="text-gray-700 text-base line-clamp-3 leading-relaxed mb-4">
-          {summary}
-        </p>
-        
-        {summary.length > 150 && (
-          <button
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-4 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              // Toggle full summary display - could be enhanced with state management
-              const summaryElement = e.currentTarget.previousElementSibling as HTMLElement;
-              if (summaryElement) {
-                summaryElement.classList.toggle('line-clamp-3');
-                e.currentTarget.textContent = summaryElement.classList.contains('line-clamp-3') 
-                  ? 'Read more' 
-                  : 'Show less';
-              }
-            }}
-          >
-            Read more
-          </button>
-        )}
-
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-auto">
           <button
             className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1 transition-colors"
             onClick={(e) => {

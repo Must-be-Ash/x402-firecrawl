@@ -340,6 +340,19 @@ export function NewsProvider({
     dispatch({ type: 'SET_AVAILABLE_DATES', payload: dates });
   }, []);
 
+  // Auto-fetch news on mount for initial date
+  useEffect(() => {
+    const autoFetch = async () => {
+      // Only auto-fetch if we don't have articles and aren't already loading
+      if (state.articles.length === 0 && !state.isLoading) {
+        console.log('Auto-fetching news for initial date:', formatDateForAPI(state.selectedDate));
+        await fetchNews(state.selectedDate, false);
+      }
+    };
+    
+    autoFetch().catch(console.error);
+  }, [fetchNews, state.articles.length, state.isLoading, state.selectedDate]); 
+
   // Auto-fetch when selectedDate or timezone changes
   useEffect(() => {
     if (state.selectedDate && !state.isLoading) {

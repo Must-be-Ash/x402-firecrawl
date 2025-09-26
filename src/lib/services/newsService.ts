@@ -75,11 +75,12 @@ export async function fetchFreshNews(date: string, timezone: string = 'UTC'): Pr
     const query = generateNewsQuery(date, timezone);
     console.log(`Searching for news with query: "${query}"`);
     
-    // Make Firecrawl API call via x402
+    // Make Firecrawl API call via x402 - focus on news articles
     const response = await searchNews(query, {
       limit: 20,
-      sources: ['web'],
-      maxAge: 172800000 // 2 days
+      sources: ['news'], // Focus on news articles instead of general web
+      maxAge: 172800000, // 2 days
+      timezone: timezone // Pass timezone for location-based targeting
     });
     
     if (!response.success) {

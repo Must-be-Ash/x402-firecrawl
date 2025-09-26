@@ -5,6 +5,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from 'viem/chains';
 import { wrapFetchWithPayment } from "x402-fetch";
 import { randomBytes } from 'crypto';
+import { getLocationFromTimezone } from '@/lib/utils/date-utils';
 
 // Manual x402 payment flow following official x402 patterns
 async function makePaymentRequestX402Standard(endpoint: string, body: Record<string, unknown>): Promise<FirecrawlSearchResponse> {
@@ -18,10 +19,20 @@ async function makePaymentRequestX402Standard(endpoint: string, body: Record<str
   
   const account = privateKeyToAccount(privateKey as `0x${string}`);
   
+  // Create wallet client for chain ID detection
+  const walletClient = createWalletClient({
+    account,
+    chain: base,
+    transport: http()
+  }).extend(publicActions);
+  
   // Make initial request to get 402 response and payment requirements
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.FIRECRAWL_API_KEY}`
+    },
     body: JSON.stringify(body)
   });
   
@@ -46,11 +57,11 @@ async function makePaymentRequestX402Standard(endpoint: string, body: Record<str
   const validBefore = (now + (paymentRequirements.maxTimeoutSeconds || 3600)).toString();
   const nonce = `0x${randomBytes(32).toString('hex')}`;
   
-  // Create EIP-712 domain matching x402 standards
+  // Create EIP-712 domain matching x402 standards - use exact values from payment requirements
   const domain = {
     name: paymentRequirements.extra?.name || 'USD Coin',
-    version: paymentRequirements.extra?.version || '2',
-    chainId: 8453, // Base mainnet
+    version: paymentRequirements.extra?.version || '2', 
+    chainId: await walletClient.getChainId(), // Get actual chain ID from wallet client
     verifyingContract: paymentRequirements.asset as `0x${string}`,
   };
   
@@ -116,6 +127,7 @@ async function makePaymentRequestX402Standard(endpoint: string, body: Record<str
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.FIRECRAWL_API_KEY}`,
       'X-PAYMENT': paymentHeader,
     },
     body: JSON.stringify(body)
@@ -140,6 +152,7 @@ async function searchNewsWithX402Fetch(query: string, options?: {
   limit?: number;
   sources?: string[];
   maxAge?: number;
+  timezone?: string;
 }): Promise<FirecrawlSearchResponse> {
   const privateKey = x402Config.payment.privateKey;
   
@@ -168,22 +181,28 @@ async function searchNewsWithX402Fetch(query: string, options?: {
     BigInt(1.0 * 10 ** 6) // Allow up to $1.00 USDC payments
   );
   
+  // Get dynamic location from timezone
+  const locationInfo = options?.timezone ? getLocationFromTimezone(options.timezone) : null;
+  
+  // Enhanced search options for better news targeting
   const searchOptions = {
     query,
-    limit: Math.min(options?.limit || 10, 10), // Max 10 for x402 endpoint
-    scrapeOptions: {
-      formats: ["markdown"], // Required for full content
-      onlyMainContent: true,
-      maxAge: options?.maxAge || x402Config.search.defaultOptions.scrapeOptions.maxAge,
-    }
+    limit: Math.min(options?.limit || 20, 20), // Increase to 20 to get more results before filtering
+    // X402 endpoint expects location as a string (country code), not object
+    ...(locationInfo ? {
+      location: locationInfo.country
+    } : {})
   };
 
   console.log('Searching with x402-fetch for query:', query);
+  console.log('DEBUG: Endpoint URL:', x402Config.firecrawlEndpoint);
+  console.log('DEBUG: Request body:', JSON.stringify(searchOptions, null, 2));
 
   const response = await fetchWithPayment(x402Config.firecrawlEndpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.FIRECRAWL_API_KEY}`
     },
     body: JSON.stringify(searchOptions)
   });
@@ -198,6 +217,9 @@ async function searchNewsWithX402Fetch(query: string, options?: {
   console.log('🎉 x402-fetch payment and search successful!');
   console.log('Articles found:', result.data?.web?.length || 0);
   
+  // Debug: Log the full response structure to understand x402 format
+  console.log('Raw Firecrawl x402 response:', JSON.stringify(result, null, 2));
+  
   return result;
 }
 
@@ -207,10 +229,18 @@ let failureCount = 0;
 const CIRCUIT_BREAKER_DELAY = 60000; // 1 minute
 const MAX_FAILURES = 3;
 
+// Reset circuit breaker function
+export function resetCircuitBreaker() {
+  failureCount = 0;
+  lastFailureTime = 0;
+  console.log('Circuit breaker reset');
+}
+
 export async function searchNews(query: string, options?: {
   limit?: number;
   sources?: string[];
   maxAge?: number;
+  timezone?: string;
 }): Promise<FirecrawlSearchResponse> {
   console.log('Searching for news with query:', query);
 
@@ -223,7 +253,7 @@ export async function searchNews(query: string, options?: {
 
   try {
     // Try the x402-fetch approach first (should handle payments automatically)
-    const result = await searchNewsWithX402Fetch(query, options);
+    const result = await searchNewsWithX402Fetch(query, { ...options, timezone: options?.timezone });
     // Reset failure count on success
     failureCount = 0;
     return result;
@@ -234,15 +264,17 @@ export async function searchNews(query: string, options?: {
     failureCount++;
     lastFailureTime = now;
     
-    // Fall back to manual approach
+    // Get dynamic location from timezone for fallback
+    const locationInfo = options?.timezone ? getLocationFromTimezone(options.timezone) : null;
+    
+    // Fall back to manual approach - use same enhanced structure
     const searchOptions = {
       query,
       limit: Math.min(options?.limit || 10, 10), // Max 10 for x402 endpoint
-      scrapeOptions: {
-        formats: ["markdown"], // Required for full content
-        onlyMainContent: true,
-        maxAge: options?.maxAge || x402Config.search.defaultOptions.scrapeOptions.maxAge,
-      }
+      // X402 endpoint expects location as a string (country code), not object
+      ...(locationInfo ? {
+        location: locationInfo.country
+      } : {})
     };
     
     console.log('Falling back to manual x402 standard payment flow...');
@@ -263,25 +295,69 @@ export async function searchNews(query: string, options?: {
 
 export function generateNewsQuery(date: string, timezone: string = 'UTC'): string {
   // Create a more specific search query for the date
-  const dateObj = new Date(date);
+  const dateObj = new Date(date + 'T12:00:00Z'); // Add time to avoid timezone issues
   const formattedDate = dateObj.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long', 
     day: 'numeric',
-    timeZone: timezone
+    timeZone: 'UTC' // Use UTC to ensure consistency
   });
   
-  // Generate location-specific query if timezone suggests location
-  let locationHint = '';
-  if (timezone.includes('Vancouver') || timezone.includes('Pacific')) {
-    locationHint = 'Vancouver Canada ';
-  } else if (timezone.includes('New_York') || timezone.includes('Eastern')) {
-    locationHint = 'United States ';
-  } else if (timezone.includes('London') || timezone.includes('GMT')) {
-    locationHint = 'United Kingdom ';
+  // Get dynamic location info based on timezone
+  const locationInfo = getLocationFromTimezone(timezone);
+  const locationHint = locationInfo.locationHint;
+  
+  // Make query less date-specific to increase chance of finding results
+  // For dates in the future or recent past, use more general terms
+  const now = new Date();
+  const queryDate = new Date(date + 'T12:00:00Z');
+  const daysDiff = Math.ceil((queryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Create dynamic domain-specific queries based on location
+  let query;
+  const country = locationInfo.country;
+  
+  if (daysDiff === 0) {
+    // Today's news - broader search with quality news sources
+    if (country === 'CA') {
+      query = `(site:cbc.ca OR site:ctvnews.ca OR site:globalnews.ca) ${locationHint}news breaking story -video -weather -sports`;
+    } else if (country === 'US') {
+      query = `(site:cnn.com OR site:reuters.com OR site:ap.org) ${locationHint}news breaking story -video -weather`;
+    } else if (country === 'GB') {
+      query = `(site:bbc.com OR site:reuters.com) ${locationHint}news breaking story -video -weather`;
+    } else {
+      query = `news ${locationHint}breaking story -video -weather`;
+    }
+  } else if (daysDiff === -1) {
+    // Yesterday's news - broader search for recent content
+    if (country === 'CA') {
+      query = `(site:cbc.ca OR site:globalnews.ca OR site:vancouversun.com) ${locationHint}news story -video -weather -sports`;
+    } else if (country === 'US') {
+      query = `(site:cnn.com OR site:reuters.com) ${locationHint}news story -video -weather`;
+    } else if (country === 'GB') {
+      query = `(site:bbc.com OR site:bbc.co.uk) ${locationHint}news story -video -weather`;
+    } else {
+      query = `news ${locationHint}story -video -weather`;
+    }
+  } else if (daysDiff >= -7) {
+    // This week's news - broader but still targeted
+    if (country === 'CA') {
+      query = `site:cbc.ca OR site:ctvnews.ca OR site:globalnews.ca ${locationHint}${formattedDate}`;
+    } else if (country === 'US') {
+      query = `site:reuters.com OR site:ap.org ${locationHint}${formattedDate}`;
+    } else if (country === 'GB') {
+      query = `site:bbc.com ${locationHint}${formattedDate}`;
+    } else {
+      query = `news ${locationHint}${formattedDate}`;
+    }
+  } else {
+    // Older news - fallback to keyword search
+    query = `${locationHint}news ${formattedDate}`;
   }
   
-  return `${locationHint}latest news ${formattedDate} breaking news today current events`;
+  console.log(`DEBUG: Generated query for date ${date} (timezone ${timezone}, country ${country}, days diff: ${daysDiff}): "${query}"`);
+  
+  return query;
 }
 
 export async function testFirecrawlConnection(): Promise<{ success: boolean; message: string }> {

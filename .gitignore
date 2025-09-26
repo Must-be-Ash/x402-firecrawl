@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# X402 test files
+test-*.js
+debug-*.js
+check-balance.js
+
+# Ignore scripts directory (absolute path)
+scripts
