@@ -81,9 +81,7 @@ export default function NewsFeed({ date, timezone, onDateChange }: NewsFeedProps
         {/* Calendar Sidebar */}
         <div className="lg:col-span-1">
           <div className="sticky top-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Select Date
-            </h2>
+      
             {isLoading && availableDates.length === 0 ? (
               <CalendarSkeleton />
             ) : (

@@ -192,6 +192,7 @@ async function searchNewsWithX402Fetch(query: string, options?: {
     ...(locationInfo ? {
       location: locationInfo.country
     } : {})
+    // Note: v1 x402 endpoint doesn't support 'sources' parameter
   };
 
   console.log('Searching with x402-fetch for query:', query);
@@ -319,26 +320,26 @@ export function generateNewsQuery(date: string, timezone: string = 'UTC'): strin
   // Get dynamic location name from timezone
   const locationName = getLocationNameFromTimezone(timezone);
 
-  // Build more targeted search queries that Firecrawl can better understand
-  // Focus on location-specific news with proper search terms
+  // Build targeted search queries optimized for news content
+  // Use clear news-focused terms that Firecrawl understands
   if (daysDiff === 0) {
-    // Today's news - location-first query
-    query = `${locationName} news today`;
+    // Today's news - focus on current headlines
+    query = `${locationName} breaking news today headlines`;
   } else if (daysDiff === -1) {
-    // Yesterday's news - simple and direct
-    query = `${locationName} news yesterday`;
+    // Yesterday's news - recent events
+    query = `${locationName} news headlines yesterday`;
   } else if (daysDiff === 1) {
-    // Tomorrow (future) - look for upcoming events
-    query = `${locationName} news tomorrow events`;
+    // Tomorrow (future) - upcoming events
+    query = `${locationName} upcoming events tomorrow`;
   } else if (daysDiff >= -7 && daysDiff < 0) {
-    // Past week - use date with location
-    query = `${locationName} news ${formattedDate}`;
+    // Past week - specific date news
+    query = `${locationName} news ${formattedDate} headlines`;
   } else if (daysDiff > 1 && daysDiff <= 7) {
-    // Next week - upcoming events
-    query = `${locationName} upcoming events ${formattedDate}`;
+    // Next week - future events
+    query = `${locationName} events ${formattedDate}`;
   } else {
-    // Older/further news - simple date query
-    query = `${locationName} ${formattedDate} news`;
+    // Older/further news - date-specific query
+    query = `${locationName} news ${formattedDate}`;
   }
 
   console.log(`DEBUG: Generated query for date ${date} (timezone ${timezone}, country ${country}, days diff: ${daysDiff}): "${query}"`);

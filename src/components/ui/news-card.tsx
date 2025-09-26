@@ -99,7 +99,7 @@ export default function NewsCard({
           )}
         </div>
 
-        <p className="text-gray-800 text-base font-medium leading-relaxed mb-4 flex-1">
+        <p className="text-gray-900 text-base font-semibold leading-relaxed mb-4 flex-1">
           {summary}
         </p>
 

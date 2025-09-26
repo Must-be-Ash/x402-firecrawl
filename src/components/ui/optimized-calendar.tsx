@@ -171,36 +171,6 @@ const OptimizedCalendar = memo(function OptimizedCalendar({
         })}
       </div>
 
-      {/* Enhanced Legend */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-50 border border-green-200 rounded"></div>
-            <span>News available</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-blue-500 rounded"></div>
-            <span>Selected</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 border-2 border-blue-400 rounded"></div>
-            <span>Today</span>
-          </div>
-          {isLoading && (
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-              <span>Loading...</span>
-            </div>
-          )}
-        </div>
-        
-        {/* Quick stats */}
-        <div className="mt-2 text-xs text-gray-500">
-          {availableDates.length > 0 && (
-            <span>{availableDates.length} days with news available</span>
-          )}
-        </div>
-      </div>
     </div>
   );
 });
@@ -229,7 +199,7 @@ export function OptimizedCalendarSkeleton({ className = '' }: { className?: stri
       <div className="grid grid-cols-7 gap-1">
         {Array(35).fill(0).map((_, i) => (
           <div key={i} className="p-2">
-            <div 
+            <div
               className={`w-8 h-8 rounded mx-auto animate-pulse ${
                 Math.random() > 0.7 ? 'bg-green-200' : 'bg-gray-200'
               }`}
@@ -237,18 +207,6 @@ export function OptimizedCalendarSkeleton({ className = '' }: { className?: stri
             ></div>
           </div>
         ))}
-      </div>
-
-      {/* Legend skeleton */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
-        <div className="flex gap-4">
-          {Array(3).fill(0).map((_, i) => (
-            <div key={i} className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-gray-200 rounded animate-pulse"></div>
-              <div className="w-16 h-3 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

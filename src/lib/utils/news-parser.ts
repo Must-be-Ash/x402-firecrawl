@@ -285,48 +285,28 @@ function generateContentHash(title: string, summary: string, url: string): strin
   return crypto.createHash('md5').update(content).digest('hex');
 }
 
-function isNewsHomepageOrDirectory(title: string, url: string, summary: string): boolean {
+function isNewsHomepageOrDirectory(title: string, _url: string, summary: string): boolean {
   // Convert to lowercase for easier matching
   const lowerTitle = title.toLowerCase();
-  const lowerUrl = url.toLowerCase();
   const lowerSummary = summary.toLowerCase();
-  
-  // Only filter out very obvious non-news content
-  const homepageIndicators = [
-    // Only filter out very generic titles
-    'home page',
+
+  // Only filter out actual error pages
+  const errorIndicators = [
     '404 not found',
     'page not found',
+  ];
 
-    // Only filter out obvious non-news URLs
-    '://www.reddit.com/r/vancouver/',
-  ];
-  
-  // Check against all indicators
-  for (const indicator of homepageIndicators) {
-    if (lowerTitle.includes(indicator) || lowerUrl.includes(indicator) || lowerSummary.includes(indicator)) {
+  // Check against error indicators only
+  for (const indicator of errorIndicators) {
+    if (lowerTitle.includes(indicator) || lowerSummary.includes(indicator)) {
       return true;
     }
   }
-  
-  // Only filter out very obvious homepage URLs
-  if (lowerUrl.endsWith('.com/') && !lowerUrl.includes('/news') && !lowerUrl.includes('/article')) {
-    return true;
-  }
-  
-  // Check if title is too generic (likely a site name rather than article)
-  // Be less aggressive - only filter out very obvious non-articles
-  const genericTitlePatterns = [
-    /^[a-z\s]+:\s*home$/i,
-    /^home$/i,
-  ];
-  
-  for (const pattern of genericTitlePatterns) {
-    if (pattern.test(title)) {
-      return true;
-    }
-  }
-  
+
+  // Don't filter homepages - they often have good news summaries
+  // Don't filter news sites even if they have "Home" in title
+  // These pages aggregate news and are useful
+
   return false;
 }
 
@@ -334,52 +314,11 @@ function isLowQualitySource(title: string, url: string, summary: string): boolea
   const lowerUrl = url.toLowerCase();
   const lowerTitle = title.toLowerCase();
 
-  // Allow YouTube videos from legitimate news sources
-  if (lowerUrl.includes('youtube.com/watch') || lowerUrl.includes('youtu.be/')) {
-    // Check if it's from a legitimate news source based on title/description
-    const legitimateNewsKeywords = [
-      'cbc', 'ctv', 'global', 'bbc', 'cnn', 'reuters', 'abc', 'nbc',
-      'national', 'news', 'headline', 'breaking'
-    ];
-    const contentToCheck = (lowerTitle + ' ' + summary.toLowerCase()).toLowerCase();
-    const hasLegitimateSource = legitimateNewsKeywords.some(keyword =>
-      contentToCheck.includes(keyword)
-    );
-
-    // Only filter out clearly non-news YouTube videos (e.g., entertainment, gaming, etc.)
-    if (!hasLegitimateSource) {
-      // Additional check: if it mentions dates like "Sept" or "September", it's likely news
-      if (contentToCheck.includes('sept') || contentToCheck.includes('september') ||
-          contentToCheck.includes('monday') || contentToCheck.includes('tuesday') ||
-          contentToCheck.includes('2025')) {
-        return false; // Keep it, likely news
-      }
-      return true; // Filter out
-    }
-  }
+  // Don't filter YouTube videos - keep all of them
+  // YouTube often has legitimate news content
   
-  // Filter out video/program pages that aren't articles (but allow legitimate news sources)
-  const videoPatterns = [
-    '/video/',
-    '/watch/',
-    '/player/',
-    '/play/video/',
-    'youtube.com',
-    'youtu.be'
-  ];
-  
-  // Only filter if it's clearly a video page AND not from a legitimate news source
-  const isVideoPage = videoPatterns.some(pattern => lowerUrl.includes(pattern));
-  const isLegitimateNewsSource = lowerUrl.includes('cbc.ca') || 
-                                lowerUrl.includes('ctvnews.ca') || 
-                                lowerUrl.includes('globalnews.ca') ||
-                                lowerUrl.includes('reuters.com') ||
-                                lowerUrl.includes('bbc.com') ||
-                                lowerUrl.includes('cnn.com');
-  
-  if (isVideoPage && !isLegitimateNewsSource) {
-    return true;
-  }
+  // Don't filter video pages from news sources
+  // Many legitimate news sources have video content
   
   // Filter out obvious social media sources
   const socialMediaSources = [

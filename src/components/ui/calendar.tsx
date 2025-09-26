@@ -132,21 +132,6 @@ export default function Calendar({
         })}
       </div>
 
-      {/* Legend */}
-      <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-600">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 bg-green-50 border border-green-200 rounded"></div>
-          <span>News available</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 bg-blue-500 rounded"></div>
-          <span>Selected</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 border-2 border-blue-500 rounded"></div>
-          <span>Today</span>
-        </div>
-      </div>
     </div>
   );
 }
