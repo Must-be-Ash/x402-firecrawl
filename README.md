@@ -1,165 +1,318 @@
-# Daily News App
+# Dormant News Website - x402 Proof of Concept
 
-A news aggregator application built with Next.js, MongoDB, and x402 payment protocol for Firecrawl API integration.
+A location-aware news aggregator that **only activates when visited**, demonstrating zero idle costs through x402 micropayments. The system detects visitor location, triggers pay-per-use Firecrawl API calls via x402, caches results, and incurs costs only during actual usage.
 
-## Features
+**Live Demo Concept**: When a Dublin visitor arrives → x402 payment triggers → Firecrawl scrapes Ireland news → cached for next visitor → no ongoing costs.
 
-- Daily news aggregation from multiple sources
-- Calendar-based navigation for historical news
-- Smart caching to minimize API costs
-- x402 payment integration for Firecrawl API
-- Responsive design with Tailwind CSS
-- TypeScript support with full type safety
+## Key Technologies
 
-## Tech Stack
+- **[x402 Protocol](https://www.x402.org/)**: HTTP-native micropayments enabling pay-per-use APIs
+- **[Firecrawl](https://www.firecrawl.dev/)**: Web scraping API with x402 payment support
+- **[Coinbase Developer Platform](https://docs.cdp.coinbase.com/)**: Wallet and USDC payments on Base
+- **Next.js 15 + MongoDB**: Full-stack framework with intelligent caching
 
-- **Framework**: Next.js 14+ with App Router
-- **Database**: MongoDB
-- **Payment**: x402 protocol + Firecrawl API
-- **Styling**: Tailwind CSS
-- **Language**: TypeScript
-- **Date Management**: date-fns
-
-## Getting Started
+## Quick Start
 
 ### Prerequisites
-
-- Node.js 18+ and npm
-- MongoDB (local or MongoDB Atlas)
-- x402 wallet with private key
-- Firecrawl API access
+- Node.js 18+
+- MongoDB (local or Atlas)
+- x402 wallet with USDC on Base (mainnet)
 
 ### Installation
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+# Clone and install
+git clone <your-repo>
+cd news-app
+npm install
 
-3. Copy environment variables:
-   ```bash
-   cp .env.example .env.local
-   ```
+# Setup environment
+cp .env.example .env.local
+```
 
-4. Update `.env.local` with your configuration:
-   ```bash
-   # Database
-   MONGODB_URI=your_mongodb_connection_string
-   MONGODB_DB_NAME=news-app
-   
-   # x402 Configuration
-   X402_PRIVATE_KEY=your_wallet_private_key
-   FIRECRAWL_API_BASE_URL=https://api.firecrawl.dev/v1/x402/search
-   
-   # Optional CDP configuration
-   CDP_API_KEY_ID=your_cdp_api_key
-   CDP_API_KEY_SECRET=your_cdp_secret
-   ```
+### Environment Variables
 
-### Development
+Create `.env.local` with:
 
-1. Start the development server:
-   ```bash
-   npm run dev
-   ```
+```bash
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017/news-app
+MONGODB_DB_NAME=news-app
 
-2. Open [http://localhost:3000](http://localhost:3000) in your browser
+# x402 Payment (get from Coinbase Developer Platform)
+X402_PRIVATE_KEY=0x1234...your_private_key
+# Fund wallet with USDC on Base: https://portal.cdp.coinbase.com/products/faucet
 
-3. The app will show a calendar interface and fetch news for the selected date
+# Firecrawl API
+FIRECRAWL_API_BASE_URL=https://api.firecrawl.dev/v1/x402/search
+FIRECRAWL_API_KEY=fc-...your_api_key
+# Get key at: https://www.firecrawl.dev/
+```
 
-### Available Scripts
+### Run Development Server
 
-- `npm run dev` - Start development server with Turbopack
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint
-- `npm run lint:fix` - Fix ESLint issues automatically
-- `npm run type-check` - Run TypeScript type checking
-- `npm run clean` - Clean build artifacts
+```bash
+npm run dev
+# Visit http://localhost:3000
+```
+
+### Test Different Locations
+
+```bash
+# Test location-based caching via CLI
+npx tsx src/scripts/test-location.ts "Europe/Dublin"
+npx tsx src/scripts/test-location.ts --all
+
+# Test in browser with timezone override
+http://localhost:3000/?timezone=Europe/Dublin
+http://localhost:3000/?timezone=America/New_York
+http://localhost:3000/?timezone=Asia/Tokyo
+
+# Clear cache
+npx tsx src/scripts/clear-cache.ts --all
+```
+
+## Architecture Overview
+
+### How It Works
+
+```
+1. Visitor arrives → Browser detects timezone (e.g., "Europe/Dublin")
+2. System checks cache → MongoDB: (date=2025-09-26, timezone=Europe/Dublin, location=IE-Dublin)
+3. Cache miss → Trigger x402 payment to Firecrawl API
+4. Firecrawl scrapes Ireland news → System caches results
+5. Next Dublin visitor → Cache hit → No API call → No cost
+```
+
+### Core Flow: Visitor → Location Detection → x402 Payment → Cache
+
+```
+┌─────────────┐
+│   Visitor   │ Browser timezone: Europe/Dublin
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────┐
+│  page.tsx (Frontend Entry Point)               │
+│  • Detects timezone via Intl API               │
+│  • Initializes NewsProvider with detected TZ   │
+└──────┬──────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────┐
+│  news-context.tsx (State Management)            │
+│  • Manages selected date and timezone          │
+│  • Calls fetchNews() when date changes         │
+└──────┬──────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────┐
+│  api/news/route.ts (API Endpoint)               │
+│  GET /api/news?date=2025-09-26&timezone=...    │
+│  • Receives request from frontend              │
+│  • Calls newsService.getNewsByDateString()     │
+└──────┬──────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────┐
+│  newsService.ts (Business Logic)                │
+│  1. Extract location from timezone              │
+│     Europe/Dublin → IE-Dublin                   │
+│  2. Check MongoDB cache                         │
+│     Query: (date, timezone, location)           │
+│  3. Cache miss → fetchFreshNews()               │
+└──────┬──────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────┐
+│  x402Service.ts (Payment & API Call)            │
+│  1. Generate location query                     │
+│     "Dublin, Ireland breaking news today"       │
+│  2. Create x402 payment via viem                │
+│     • Sign EIP-712 USDC authorization          │
+│     • Create payment header                     │
+│  3. Call Firecrawl with X-PAYMENT header        │
+│  4. Return scraped news articles                │
+└──────┬──────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────┐
+│  MongoDB Cache (Cost Optimization)              │
+│  • Save: (date, timezone, location, articles)   │
+│  • Index: {date, timezone, location}            │
+│  • Next visitor from Dublin → Cache hit!        │
+└─────────────────────────────────────────────────┘
+```
+
+### Key Files & Responsibilities
+
+| File | Purpose |
+|------|---------|
+| **`src/app/page.tsx`** | Frontend entry point, detects browser timezone, initializes app state |
+| **`src/lib/context/news-context.tsx`** | React Context managing date/timezone state, triggers API calls |
+| **`src/app/api/news/route.ts`** | API endpoint receiving requests from frontend |
+| **`src/lib/services/newsService.ts`** | Business logic: cache checking, location extraction, orchestrates fetching |
+| **`src/lib/services/x402Service.ts`** | x402 payment creation, Firecrawl API calls with micropayments |
+| **`src/lib/utils/date-utils.ts`** | **Dynamic location extraction** from IANA timezones (no hardcoded cities!) |
+| **`src/lib/db/operations/newsOperations.ts`** | MongoDB operations: save/retrieve cached news by location |
+
+### Location Detection (Fully Dynamic)
+
+The system **never hardcodes locations**—it dynamically parses IANA timezones:
+
+```typescript
+// date-utils.ts
+"Europe/Dublin"       → Country: IE, City: Dublin, Query: "Dublin, Ireland"
+"America/New_York"    → Country: US, City: New York, Query: "New York, United States"
+"Asia/Tokyo"          → Country: JP, City: Tokyo, Query: "Tokyo, Japan"
+"Australia/Sydney"    → Country: AU, City: Sydney, Query: "Sydney, Australia"
+
+// Works for ANY timezone worldwide!
+```
+
+### x402 Payment Flow
+
+```typescript
+// x402Service.ts - Simplified flow
+
+1. Initial Request to Firecrawl
+   → Response: 402 Payment Required
+   → Payment requirements: { amount, payTo, asset, network }
+
+2. Create EIP-712 Signature (USDC authorization)
+   → Sign transferWithAuthorization message
+   → Creates permission for Firecrawl to pull funds
+
+3. Encode Payment Header
+   → Base64 encode signature + authorization
+   → Add X-PAYMENT header to request
+
+4. Retry Request with Payment
+   → Firecrawl verifies signature
+   → Settles payment on Base blockchain
+   → Returns scraped news data
+```
+
+### Cache Strategy (Cost Optimization)
+
+```javascript
+// MongoDB document structure
+{
+  date: "2025-09-26",
+  timezone: "Europe/Dublin",
+  location: "IE-Dublin",          // Location identifier
+  articles: [...],                // Cached news articles
+  metadata: {
+    searchQuery: "Dublin, Ireland breaking news today",
+    country: "IE",
+    fetchedAt: "2025-09-26T10:00:00Z"
+  }
+}
+
+// Index for fast lookups
+{ date: 1, timezone: 1, location: 1 }
+```
+
+**Key Insight**: Cache by `(date, timezone, location)` tuple ensures:
+- Dublin visitors see Dublin news (not Vancouver news)
+- Cached results reused for same location
+- Only pays Firecrawl once per location per day
 
 ## Project Structure
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── api/               # API routes
-│   ├── globals.css        # Global styles
-│   ├── layout.tsx         # Root layout
-│   └── page.tsx           # Main page
-├── components/            # React components
-│   ├── news/             # News-specific components
-│   └── ui/               # Reusable UI components
-├── lib/                  # Utility functions and services
-│   ├── db/               # Database operations
-│   ├── services/         # External service integrations
-│   ├── types/            # TypeScript type definitions
-│   └── utils/            # Utility functions
-└── config/               # Configuration files
+├── app/
+│   ├── page.tsx                    # Frontend: timezone detection, NewsProvider init
+│   └── api/news/route.ts           # API endpoint: /api/news handler
+├── components/
+│   ├── news/
+│   │   ├── news-feed.tsx           # Main news display component
+│   │   ├── news-grid.tsx           # Article grid layout
+│   │   └── news-card.tsx           # Individual article card
+│   └── ui/
+│       ├── calendar.tsx            # Date picker with cache indicators
+│       └── optimized-calendar.tsx  # Performance-optimized calendar
+├── lib/
+│   ├── context/
+│   │   └── news-context.tsx        # React Context: date/timezone state
+│   ├── services/
+│   │   ├── newsService.ts          # Business logic: cache + fetch orchestration
+│   │   └── x402Service.ts          # x402 payments + Firecrawl API calls
+│   ├── db/
+│   │   ├── mongodb.ts              # Database connection + indexes
+│   │   └── operations/
+│   │       └── newsOperations.ts   # MongoDB CRUD for cached news
+│   └── utils/
+│       ├── date-utils.ts           # 🌟 Dynamic location extraction from timezones
+│       └── news-parser.ts          # Parse/filter Firecrawl responses
+├── scripts/
+│   ├── test-location.ts            # CLI: test different locations
+│   └── clear-cache.ts              # CLI: manage MongoDB cache
+└── config/
+    └── x402.ts                     # x402 configuration
 ```
 
-## API Endpoints
+## Cost Model: Dormant → Active → Dormant
 
-- `GET /api/news?date=YYYY-MM-DD&timezone=America/Vancouver` - Get news for specific date
-- `GET /api/news/[date]` - Get cached news for specific date
+**Traditional News Site**:
+- 24/7 scheduled scraping: $X per hour × 24 × 30 = $720/month (even with zero visitors)
 
-## Environment Variables
+**x402 Dormant Model**:
+- Idle state: $0/month
+- Visitor arrives: ~$0.001 Firecrawl call (one-time)
+- 1000 visitors, 100 unique locations: ~$0.10/month
+- **Only pay for actual usage**
 
-See `.env.example` for all available configuration options.
+## Development Scripts
 
-## Development Notes
+```bash
+npm run dev              # Start dev server (http://localhost:3000)
+npm run build            # Build for production
+npm run start            # Start production server
+npm run lint             # ESLint
+npm run type-check       # TypeScript validation
 
-- The app uses MongoDB for caching news data to minimize Firecrawl API costs
-- x402 payments are handled automatically when fetching fresh news
-- Calendar component shows dates with available news data
-- All components are fully typed with TypeScript
-- Responsive design works on mobile and desktop
+# Testing & Cache Management
+npx tsx src/scripts/test-location.ts "Europe/Dublin"
+npx tsx src/scripts/test-location.ts --all
+npx tsx src/scripts/clear-cache.ts --all
+```
 
-## Phase 1 Status: ✅ COMPLETED
-## Phase 2 Status: ✅ COMPLETED
+## How Different Locations Work
 
-### Phase 1: Foundation Setup
-- [x] Next.js project initialized with TypeScript and Tailwind CSS
-- [x] MongoDB connection and basic schemas set up  
-- [x] Environment variables and project structure configured
-- [x] Basic page layout with placeholder components created
-- [x] Development scripts and build configuration set up
+```bash
+# Dublin visitor
+http://localhost:3000/?timezone=Europe/Dublin
+→ Fetches: "Dublin, Ireland breaking news"
+→ Caches: IE-Dublin
+→ Shows: Irish news sources (BBC Northern Ireland, Irish Times, etc.)
 
-### Phase 2: Database Integration & x402 Setup
-- [x] MongoDB connection with automatic indexing (5 indexes)
-- [x] Complete x402/Firecrawl integration with payment handling
-- [x] News API routes with intelligent caching system
-- [x] Data validation and sanitization with Zod
-- [x] Sample data system for testing
-- [x] Health monitoring with service status checks
-- [x] Comprehensive error handling
+# New York visitor
+http://localhost:3000/?timezone=America/New_York
+→ Fetches: "New York, United States breaking news"
+→ Caches: US-NewYork
+→ Shows: US news sources (NY Times, CNN, etc.)
 
-## 🎉 **FUNCTIONAL FEATURES WORKING NOW:**
+# Tokyo visitor
+http://localhost:3000/?timezone=Asia/Tokyo
+→ Fetches: "Tokyo, Japan breaking news"
+→ Caches: JP-Tokyo
+→ Shows: Japanese news sources
+```
 
-### ✅ **Backend Services**
-- **MongoDB**: Connection, indexing, and CRUD operations
-- **API Routes**: `/api/news`, `/api/news/[date]`, `/api/health`  
-- **Caching System**: Smart daily news caching to minimize costs
-- **x402 Integration**: Payment handling for Firecrawl API calls
-- **Error Handling**: Specific error codes and user-friendly messages
+## Proof of Concept Insights
 
-### ✅ **Frontend Components**
-- **Calendar**: Date navigation with availability indicators
-- **NewsCard**: Article display with source links and images
-- **NewsGrid**: Responsive grid layout with loading states
-- **LoadingSpinner**: Multiple animation variants
-- **NewsFeed**: Main orchestration component
+This demonstrates how x402 enables:
 
-### ✅ **Testing & Development**
-- **Health Endpoint**: Service status monitoring
-- **Sample Data**: Test endpoint for development
-- **Environment Config**: Complete setup with validation
+1. **Zero Idle Costs**: No scheduled jobs, no wasted API calls
+2. **Visitor-Triggered Payments**: Infrastructure activates on-demand
+3. **Global Scalability**: Works for any location automatically
+4. **Intelligent Caching**: Subsequent visitors reuse cached data
+5. **Transparent Micropayments**: Sub-cent API costs with blockchain settlement
 
-### 🔄 **Next Phase: Payment Integration & Production Ready**
+Traditional APIs require subscriptions even during idle time. x402 enables pay-per-use consumption, making dormant infrastructure economically viable.
 
-The core application is functional! The next phase will focus on:
-- Completing x402 payment flow for live Firecrawl integration
-- Adding advanced calendar features
-- Performance optimization and error handling
-- Production deployment configuration
-# x402-firecrawl
+## License
+
+MIT# x402-firecrawl
