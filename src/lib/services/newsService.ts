@@ -1,8 +1,8 @@
 import { NewsArticle, ErrorCode } from '@/lib/types/news';
 import { searchNews, generateNewsQuery } from './x402Service';
 import { parseFirecrawlResponse, deduplicateArticles, filterRelevantNews } from '@/lib/utils/news-parser';
-import { getNewsByDate, saveNewsForDate, checkNewsExists } from '@/lib/db/operations';
-import { formatDateForAPI, isValidNewsDate } from '@/lib/utils/date-utils';
+import { getNewsByDate, saveNewsForDate, checkNewsExists } from '@/lib/db/operations/newsOperations';
+import { formatDateForAPI, isValidNewsDate, getLocationIdentifier } from '@/lib/utils/date-utils';
 
 export class NewsServiceError extends Error {
   constructor(public code: ErrorCode, message: string, public details?: unknown) {
@@ -23,33 +23,36 @@ export async function getNewsByDateString(date: string, timezone: string = 'UTC'
   const dateObj = new Date(date);
   if (!isValidNewsDate(dateObj)) {
     throw new NewsServiceError(
-      ErrorCode.INVALID_DATE, 
+      ErrorCode.INVALID_DATE,
       'Invalid date provided or date is too old/in the future'
     );
   }
 
   try {
-    // Check if we already have news for this date
-    const existingNews = await getNewsByDate(date, timezone);
-    
+    // Get location identifier from timezone
+    const location = getLocationIdentifier(timezone);
+
+    // Check if we already have news for this date + location combination
+    const existingNews = await getNewsByDate(date, timezone, location);
+
     if (existingNews && existingNews.articles.length > 0) {
-      console.log(`Found cached news for ${date} (${timezone}): ${existingNews.articles.length} articles`);
+      console.log(`Found cached news for ${date} (${timezone}, ${location}): ${existingNews.articles.length} articles`);
       return existingNews.articles;
     }
-    
-    console.log(`No cached news for ${date} (${timezone}), fetching fresh news...`);
-    
+
+    console.log(`No cached news for ${date} (${timezone}, ${location}), fetching fresh news...`);
+
     // Fetch fresh news
     const freshArticles = await fetchFreshNews(date, timezone);
-    
-    // Cache the results
+
+    // Cache the results with location
     if (freshArticles.length > 0) {
-      await cacheNewsData(date, timezone, freshArticles, {
+      await cacheNewsData(date, timezone, location, freshArticles, {
         searchQuery: generateNewsQuery(date, timezone),
         fetchDuration: 0 // We'll track this later
       });
     }
-    
+
     return freshArticles;
     
   } catch (error) {
@@ -131,8 +134,9 @@ export async function fetchFreshNews(date: string, timezone: string = 'UTC'): Pr
 }
 
 export async function cacheNewsData(
-  date: string, 
-  timezone: string, 
+  date: string,
+  timezone: string,
+  location: string,
   articles: NewsArticle[],
   metadata: {
     searchQuery: string;
@@ -141,8 +145,8 @@ export async function cacheNewsData(
   }
 ): Promise<void> {
   try {
-    await saveNewsForDate(date, timezone, articles, metadata);
-    console.log(`Cached ${articles.length} articles for ${date} (${timezone})`);
+    await saveNewsForDate(date, timezone, location, articles, metadata);
+    console.log(`Cached ${articles.length} articles for ${date} (${timezone}, ${location})`);
   } catch (error) {
     console.error('Failed to cache news data:', error);
     // Don't throw here - caching failure shouldn't break the main flow
@@ -190,7 +194,7 @@ export async function checkNewsServiceHealth(): Promise<{
   try {
     // Test database
     const testDate = formatDateForAPI(new Date());
-    await checkNewsExists(testDate, 'UTC');
+    await checkNewsExists(testDate, 'UTC', 'US');
     health.database = true;
     messages.push('Database: OK');
   } catch {

@@ -259,3 +259,122 @@ export function getLocationNameFromTimezone(timezone: string): string {
   console.warn(`Unknown timezone: ${timezone}, defaulting to United States`);
   return 'United States';
 }
+
+/**
+ * Dynamically generates a location identifier from IANA timezone
+ * Format: "CountryCode-City" or "CountryCode" for non-specific locations
+ * Examples: "CA-Vancouver", "US-NewYork", "GB-London", "JP-Tokyo"
+ */
+export function getLocationIdentifier(timezone: string): string {
+  try {
+    // Validate timezone using Intl API
+    new Intl.DateTimeFormat('en', { timeZone: timezone });
+
+    // Parse IANA timezone format: Continent/City or Country/City
+    const parts = timezone.split('/');
+
+    if (parts.length >= 2) {
+      // Extract city from last part (handles zones like America/Indiana/Indianapolis)
+      const city = parts[parts.length - 1]
+        .replace(/_/g, '') // "New_York" → "NewYork"
+        .replace(/\s+/g, ''); // Remove any spaces
+
+      // Get country code from timezone
+      const countryCode = getCountryCodeFromTimezone(timezone);
+
+      return `${countryCode}-${city}`;
+    }
+
+    // Handle non-standard timezones (GMT, UTC, EST, PST, etc.)
+    // These don't have city info, so just use country code
+    return getCountryCodeFromTimezone(timezone);
+
+  } catch {
+    console.warn(`Invalid or unknown timezone: ${timezone}, using fallback`);
+    // Fallback to country code only
+    return getCountryCodeFromTimezone(timezone);
+  }
+}
+
+/**
+ * Maps timezone to country code by parsing region and city
+ * Uses a simplified approach with major city mappings
+ */
+function getCountryCodeFromTimezone(timezone: string): string {
+  const lowerTimezone = timezone.toLowerCase();
+
+  // Canadian cities
+  const canadianCities = ['vancouver', 'toronto', 'montreal', 'calgary', 'edmonton', 'ottawa', 'winnipeg', 'quebec', 'hamilton', 'halifax'];
+  if (canadianCities.some(city => lowerTimezone.includes(city))) {
+    return 'CA';
+  }
+
+  // UK cities
+  const ukCities = ['london', 'manchester', 'birmingham', 'glasgow', 'edinburgh'];
+  if (ukCities.some(city => lowerTimezone.includes(city)) || lowerTimezone.includes('gb')) {
+    return 'GB';
+  }
+
+  // Parse by continent/region prefix
+  if (lowerTimezone.startsWith('america/')) {
+    // Distinguish between North/Central/South America
+    const usaCities = ['new_york', 'los_angeles', 'chicago', 'houston', 'phoenix', 'philadelphia', 'san_antonio', 'san_diego', 'dallas', 'san_jose', 'detroit', 'denver', 'boston', 'seattle', 'miami', 'atlanta'];
+    const mexicoCities = ['mexico_city', 'cancun', 'tijuana', 'guadalajara', 'monterrey'];
+    const brazilCities = ['sao_paulo', 'rio', 'brasilia', 'salvador', 'fortaleza'];
+
+    if (usaCities.some(city => lowerTimezone.includes(city))) return 'US';
+    if (mexicoCities.some(city => lowerTimezone.includes(city))) return 'MX';
+    if (brazilCities.some(city => lowerTimezone.includes(city))) return 'BR';
+    if (lowerTimezone.includes('argentina')) return 'AR';
+    if (lowerTimezone.includes('chile')) return 'CL';
+
+    // Default America/ to US
+    return 'US';
+  }
+
+  if (lowerTimezone.startsWith('europe/')) {
+    const cityToCountry: Record<string, string> = {
+      'paris': 'FR', 'berlin': 'DE', 'madrid': 'ES', 'rome': 'IT',
+      'amsterdam': 'NL', 'brussels': 'BE', 'vienna': 'AT', 'zurich': 'CH',
+      'stockholm': 'SE', 'oslo': 'NO', 'copenhagen': 'DK', 'helsinki': 'FI',
+      'warsaw': 'PL', 'prague': 'CZ', 'budapest': 'HU', 'athens': 'GR',
+      'lisbon': 'PT', 'dublin': 'IE', 'moscow': 'RU', 'istanbul': 'TR'
+    };
+
+    for (const [city, country] of Object.entries(cityToCountry)) {
+      if (lowerTimezone.includes(city)) return country;
+    }
+
+    return 'GB'; // Default Europe to GB
+  }
+
+  if (lowerTimezone.startsWith('asia/')) {
+    const cityToCountry: Record<string, string> = {
+      'tokyo': 'JP', 'seoul': 'KR', 'shanghai': 'CN', 'beijing': 'CN', 'hong_kong': 'HK',
+      'singapore': 'SG', 'bangkok': 'TH', 'jakarta': 'ID', 'manila': 'PH',
+      'mumbai': 'IN', 'delhi': 'IN', 'kolkata': 'IN', 'bangalore': 'IN',
+      'dubai': 'AE', 'riyadh': 'SA', 'tehran': 'IR', 'karachi': 'PK'
+    };
+
+    for (const [city, country] of Object.entries(cityToCountry)) {
+      if (lowerTimezone.includes(city)) return country;
+    }
+
+    return 'CN'; // Default Asia to CN
+  }
+
+  if (lowerTimezone.startsWith('australia/') || lowerTimezone.startsWith('pacific/auckland')) {
+    if (lowerTimezone.includes('auckland')) return 'NZ';
+    return 'AU';
+  }
+
+  if (lowerTimezone.startsWith('africa/')) {
+    if (lowerTimezone.includes('cairo')) return 'EG';
+    if (lowerTimezone.includes('johannesburg')) return 'ZA';
+    if (lowerTimezone.includes('lagos')) return 'NG';
+    return 'ZA'; // Default Africa to South Africa
+  }
+
+  // Fallback to US for unknown timezones
+  return 'US';
+}

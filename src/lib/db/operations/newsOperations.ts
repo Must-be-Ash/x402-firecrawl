@@ -1,16 +1,19 @@
 import { connectToDatabase } from '../mongodb';
 import { DailyNewsDocument, NewsArticle } from '@/lib/types/news';
 
-export async function getNewsByDate(date: string, timezone: string = 'UTC'): Promise<DailyNewsDocument | null> {
+export async function getNewsByDate(date: string, timezone: string = 'UTC', location?: string): Promise<DailyNewsDocument | null> {
   try {
     const { db } = await connectToDatabase();
     const collection = db.collection<DailyNewsDocument>('daily_news');
-    
-    const result = await collection.findOne({ 
-      date, 
-      timezone 
-    });
-    
+
+    // Build query with location if provided
+    const query: { date: string; timezone: string; location?: string } = { date, timezone };
+    if (location) {
+      query.location = location;
+    }
+
+    const result = await collection.findOne(query);
+
     return result;
   } catch (error) {
     console.error('Error fetching news by date:', error);
@@ -19,9 +22,10 @@ export async function getNewsByDate(date: string, timezone: string = 'UTC'): Pro
 }
 
 export async function saveNewsForDate(
-  date: string, 
+  date: string,
   timezone: string,
-  articles: NewsArticle[], 
+  location: string,
+  articles: NewsArticle[],
   metadata: {
     searchQuery: string;
     firecrawlCost?: number;
@@ -31,10 +35,11 @@ export async function saveNewsForDate(
   try {
     const { db } = await connectToDatabase();
     const collection = db.collection<DailyNewsDocument>('daily_news');
-    
+
     const newsDocument: Omit<DailyNewsDocument, '_id'> = {
       date,
       timezone,
+      location,
       articles,
       createdAt: new Date(),
       lastUpdated: new Date(),
@@ -43,30 +48,33 @@ export async function saveNewsForDate(
         ...metadata
       }
     };
-    
+
     await collection.replaceOne(
-      { date, timezone },
+      { date, timezone, location },
       newsDocument,
       { upsert: true }
     );
-    
-    console.log(`Saved ${articles.length} articles for ${date} (${timezone})`);
+
+    console.log(`Saved ${articles.length} articles for ${date} (${timezone}, ${location})`);
   } catch (error) {
     console.error('Error saving news:', error);
     throw new Error('Failed to save news to database');
   }
 }
 
-export async function checkNewsExists(date: string, timezone: string = 'UTC'): Promise<boolean> {
+export async function checkNewsExists(date: string, timezone: string = 'UTC', location?: string): Promise<boolean> {
   try {
     const { db } = await connectToDatabase();
     const collection = db.collection<DailyNewsDocument>('daily_news');
-    
-    const count = await collection.countDocuments({ 
-      date, 
-      timezone 
-    });
-    
+
+    // Build query with location if provided
+    const query: { date: string; timezone: string; location?: string } = { date, timezone };
+    if (location) {
+      query.location = location;
+    }
+
+    const count = await collection.countDocuments(query);
+
     return count > 0;
   } catch (error) {
     console.error('Error checking news existence:', error);

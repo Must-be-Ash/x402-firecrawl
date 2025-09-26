@@ -22,6 +22,7 @@ export interface DailyNewsDocument {
   _id: ObjectId;
   date: string; // YYYY-MM-DD format
   timezone: string; // User's timezone when fetched
+  location: string; // Location identifier (e.g., "CA-Vancouver", "US-NewYork", "GB-London")
   articles: NewsArticle[];
   createdAt: Date;
   lastUpdated: Date;

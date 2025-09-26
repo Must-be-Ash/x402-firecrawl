@@ -90,8 +90,11 @@ export const sampleNewsArticles: NewsArticle[] = [
 export async function insertSampleNews(date: string = '2025-08-27', timezone: string = 'America/Vancouver') {
   try {
     console.log(`Inserting ${sampleNewsArticles.length} sample articles for ${date} (${timezone})`);
-    
-    await saveNewsForDate(date, timezone, sampleNewsArticles, {
+
+    // Generate location identifier from timezone
+    const location = 'CA-Vancouver'; // Default for sample data
+
+    await saveNewsForDate(date, timezone, location, sampleNewsArticles, {
       searchQuery: `sample news ${date} Vancouver Canada`,
       firecrawlCost: 0, // Sample data doesn't cost anything
       fetchDuration: 0

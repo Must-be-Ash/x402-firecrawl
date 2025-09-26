@@ -51,22 +51,25 @@ async function connectToDatabase() {
 async function createIndexes(database: Db) {
   try {
     const dailyNewsCollection = database.collection('daily_news');
-    
-    // Primary index for date-based queries
+
+    // Primary index for location-based date queries
+    await dailyNewsCollection.createIndex({ date: 1, timezone: 1, location: 1 });
+
+    // Backward compatibility index for queries without location
     await dailyNewsCollection.createIndex({ date: 1, timezone: 1 });
-    
+
     // Performance monitoring index
     await dailyNewsCollection.createIndex({ createdAt: 1 });
-    
+
     // Content search index (for future features)
     await dailyNewsCollection.createIndex({
       'articles.headline': 'text',
       'articles.summary': 'text'
     });
-    
+
     // Cleanup operations index
     await dailyNewsCollection.createIndex({ lastUpdated: 1 });
-    
+
     console.log('MongoDB indexes created successfully');
   } catch (error) {
     console.error('Failed to create indexes:', error);

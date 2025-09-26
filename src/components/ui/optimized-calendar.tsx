@@ -17,7 +17,7 @@ const OptimizedCalendar = memo(function OptimizedCalendar({
   className = '',
 }: OptimizedCalendarProps) {
   const { isLoading, fetchNews } = useNews();
-  const { selectedDate, availableDates, isDateAvailable } = useNewsDate();
+  const { selectedDate, isDateAvailable } = useNewsDate();
   const { setFocusElement, handleKeyDown } = useFocusManagement();
   usePerformanceMonitoring('OptimizedCalendar');
 
