@@ -5,7 +5,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from 'viem/chains';
 import { wrapFetchWithPayment } from "x402-fetch";
 import { randomBytes } from 'crypto';
-import { getLocationFromTimezone } from '@/lib/utils/date-utils';
+import { getLocationFromTimezone, getLocationNameFromTimezone } from '@/lib/utils/date-utils';
 
 // Manual x402 payment flow following official x402 patterns
 async function makePaymentRequestX402Standard(endpoint: string, body: Record<string, unknown>): Promise<FirecrawlSearchResponse> {
@@ -187,10 +187,7 @@ async function searchNewsWithX402Fetch(query: string, options?: {
   // Enhanced search options for better news targeting
   const searchOptions = {
     query,
-    limit: Math.min(options?.limit || 20, 20), // Increase to 20 to get more results before filtering
-    sources: ['news'], // Focus on news-specific results as per Firecrawl docs
-    tbs: 'qdr:d', // Past 24 hours for recent news (per Firecrawl docs)
-    timeout: 30000, // 30 second timeout for reliability (per Firecrawl docs)
+    limit: Math.min(options?.limit || 30, 30), // Increase to 30 to get more results before filtering
     // X402 endpoint expects location as a string (country code), not object
     ...(locationInfo ? {
       location: locationInfo.country
@@ -301,65 +298,51 @@ export function generateNewsQuery(date: string, timezone: string = 'UTC'): strin
   const dateObj = new Date(date + 'T12:00:00Z'); // Add time to avoid timezone issues
   const formattedDate = dateObj.toLocaleDateString('en-US', {
     year: 'numeric',
-    month: 'long', 
+    month: 'long',
     day: 'numeric',
     timeZone: 'UTC' // Use UTC to ensure consistency
   });
-  
+
   // Get dynamic location info based on timezone
   const locationInfo = getLocationFromTimezone(timezone);
-  const locationHint = locationInfo.locationHint;
-  
+
   // Make query less date-specific to increase chance of finding results
   // For dates in the future or recent past, use more general terms
   const now = new Date();
   const queryDate = new Date(date + 'T12:00:00Z');
   const daysDiff = Math.ceil((queryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  
+
   // Create dynamic domain-specific queries based on location
   let query;
   const country = locationInfo.country;
-  
+
+  // Get dynamic location name from timezone
+  const locationName = getLocationNameFromTimezone(timezone);
+
+  // Build more targeted search queries that Firecrawl can better understand
+  // Focus on location-specific news with proper search terms
   if (daysDiff === 0) {
-    // Today's news - use broader news-focused queries with Firecrawl's news sources
-    if (country === 'CA') {
-      query = `breaking news ${locationHint}Canada -video -weather -sports`;
-    } else if (country === 'US') {
-      query = `breaking news ${locationHint}United States -video -weather`;
-    } else if (country === 'GB') {
-      query = `breaking news ${locationHint}United Kingdom -video -weather`;
-    } else {
-      query = `breaking news ${locationHint} -video -weather`;
-    }
+    // Today's news - location-first query
+    query = `${locationName} news today`;
   } else if (daysDiff === -1) {
-    // Yesterday's news - use recent news queries
-    if (country === 'CA') {
-      query = `news ${locationHint}Canada yesterday -video -weather -sports`;
-    } else if (country === 'US') {
-      query = `news ${locationHint}United States yesterday -video -weather`;
-    } else if (country === 'GB') {
-      query = `news ${locationHint}United Kingdom yesterday -video -weather`;
-    } else {
-      query = `news ${locationHint}yesterday -video -weather`;
-    }
-  } else if (daysDiff >= -7) {
-    // This week's news - use date-specific queries
-    if (country === 'CA') {
-      query = `news ${locationHint}Canada ${formattedDate} -video -weather`;
-    } else if (country === 'US') {
-      query = `news ${locationHint}United States ${formattedDate} -video -weather`;
-    } else if (country === 'GB') {
-      query = `news ${locationHint}United Kingdom ${formattedDate} -video -weather`;
-    } else {
-      query = `news ${locationHint}${formattedDate} -video -weather`;
-    }
+    // Yesterday's news - simple and direct
+    query = `${locationName} news yesterday`;
+  } else if (daysDiff === 1) {
+    // Tomorrow (future) - look for upcoming events
+    query = `${locationName} news tomorrow events`;
+  } else if (daysDiff >= -7 && daysDiff < 0) {
+    // Past week - use date with location
+    query = `${locationName} news ${formattedDate}`;
+  } else if (daysDiff > 1 && daysDiff <= 7) {
+    // Next week - upcoming events
+    query = `${locationName} upcoming events ${formattedDate}`;
   } else {
-    // Older news - fallback to keyword search with exclusions
-    query = `${locationHint}news ${formattedDate} -video -weather`;
+    // Older/further news - simple date query
+    query = `${locationName} ${formattedDate} news`;
   }
-  
+
   console.log(`DEBUG: Generated query for date ${date} (timezone ${timezone}, country ${country}, days diff: ${daysDiff}): "${query}"`);
-  
+
   return query;
 }
 

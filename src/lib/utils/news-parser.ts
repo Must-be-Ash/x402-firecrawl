@@ -291,28 +291,15 @@ function isNewsHomepageOrDirectory(title: string, url: string, summary: string):
   const lowerUrl = url.toLowerCase();
   const lowerSummary = summary.toLowerCase();
   
-  // Check if this is a homepage or directory rather than specific article
+  // Only filter out very obvious non-news content
   const homepageIndicators = [
-    // Generic homepage/directory titles (only very obvious ones)
-    'breaking news - top', 'news home', 'home page',
-    'headlines and stories', 'news | weather',
-    'source for local news',
-    
-    // URL patterns that indicate directories/homepages (only root URLs)
-    '://vancouver.citynews.ca/',
-    '://www.ctvnews.ca/vancouver/',
-    '://vancouversun.com/category/',
-    '://vancouversun.com/$', // Only exact root, not subpages
-    '://globalnews.ca/bc/',
-    '://www.vancouverisawesome.com/',
-    '://dailyhive.com/',
+    // Only filter out very generic titles
+    'home page',
+    '404 not found',
+    'page not found',
+
+    // Only filter out obvious non-news URLs
     '://www.reddit.com/r/vancouver/',
-    
-    // Summary patterns that indicate general sites
-    'local breaking news, live updates',
-    "vancouver source for local news",
-    "wondering what is going on in vancouver",
-    'read latest breaking news, updates',
   ];
   
   // Check against all indicators
@@ -322,17 +309,16 @@ function isNewsHomepageOrDirectory(title: string, url: string, summary: string):
     }
   }
   
-  // Check for very short URLs that are likely homepages
-  if (lowerUrl.endsWith('.com/') || lowerUrl.endsWith('.ca/') || lowerUrl.includes('/category/')) {
+  // Only filter out very obvious homepage URLs
+  if (lowerUrl.endsWith('.com/') && !lowerUrl.includes('/news') && !lowerUrl.includes('/article')) {
     return true;
   }
   
   // Check if title is too generic (likely a site name rather than article)
+  // Be less aggressive - only filter out very obvious non-articles
   const genericTitlePatterns = [
     /^[a-z\s]+:\s*home$/i,
-    /^[a-z\s]+news$/i,
-    /^breaking news$/i,
-    /^latest stories$/i,
+    /^home$/i,
   ];
   
   for (const pattern of genericTitlePatterns) {
@@ -347,10 +333,29 @@ function isNewsHomepageOrDirectory(title: string, url: string, summary: string):
 function isLowQualitySource(title: string, url: string, summary: string): boolean {
   const lowerUrl = url.toLowerCase();
   const lowerTitle = title.toLowerCase();
-  
-  // Filter out YouTube videos since we're targeting text news sources
+
+  // Allow YouTube videos from legitimate news sources
   if (lowerUrl.includes('youtube.com/watch') || lowerUrl.includes('youtu.be/')) {
-    return true;
+    // Check if it's from a legitimate news source based on title/description
+    const legitimateNewsKeywords = [
+      'cbc', 'ctv', 'global', 'bbc', 'cnn', 'reuters', 'abc', 'nbc',
+      'national', 'news', 'headline', 'breaking'
+    ];
+    const contentToCheck = (lowerTitle + ' ' + summary.toLowerCase()).toLowerCase();
+    const hasLegitimateSource = legitimateNewsKeywords.some(keyword =>
+      contentToCheck.includes(keyword)
+    );
+
+    // Only filter out clearly non-news YouTube videos (e.g., entertainment, gaming, etc.)
+    if (!hasLegitimateSource) {
+      // Additional check: if it mentions dates like "Sept" or "September", it's likely news
+      if (contentToCheck.includes('sept') || contentToCheck.includes('september') ||
+          contentToCheck.includes('monday') || contentToCheck.includes('tuesday') ||
+          contentToCheck.includes('2025')) {
+        return false; // Keep it, likely news
+      }
+      return true; // Filter out
+    }
   }
   
   // Filter out video/program pages that aren't articles (but allow legitimate news sources)

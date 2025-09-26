@@ -180,3 +180,82 @@ export function getLocationFromTimezone(timezone: string): { country: string; la
   console.warn(`Unknown timezone: ${timezone}, defaulting to US`);
   return { country: 'US', languages: ['en'], locationHint: '' };
 }
+
+/**
+ * Maps timezone to a human-readable location name for search queries
+ */
+export function getLocationNameFromTimezone(timezone: string): string {
+  const lowerTimezone = timezone.toLowerCase();
+  
+  // North America - Canada
+  if (lowerTimezone.includes('vancouver') || lowerTimezone.includes('america/vancouver')) {
+    return 'Vancouver, Canada';
+  }
+  
+  if (lowerTimezone.includes('toronto') || lowerTimezone.includes('america/toronto') || 
+      lowerTimezone.includes('america/montreal') || lowerTimezone.includes('america/halifax')) {
+    return 'Canada';
+  }
+  
+  if (lowerTimezone.includes('america/edmonton') || lowerTimezone.includes('america/calgary') || 
+      lowerTimezone.includes('america/winnipeg') || lowerTimezone.includes('mountain') || 
+      lowerTimezone.includes('central') && lowerTimezone.includes('canada')) {
+    return 'Canada';
+  }
+  
+  // North America - United States
+  if (lowerTimezone.includes('america/new_york') || lowerTimezone.includes('america/chicago') || 
+      lowerTimezone.includes('america/denver') || lowerTimezone.includes('america/los_angeles') ||
+      lowerTimezone.includes('america/phoenix') || lowerTimezone.includes('america/anchorage') ||
+      lowerTimezone.includes('eastern') || lowerTimezone.includes('pacific') || 
+      lowerTimezone.includes('mountain') || lowerTimezone.includes('central')) {
+    return 'United States';
+  }
+  
+  // Europe
+  if (lowerTimezone.includes('europe/london') || lowerTimezone.includes('gmt') || 
+      lowerTimezone.includes('bst') || lowerTimezone.includes('london')) {
+    return 'United Kingdom';
+  }
+  
+  if (lowerTimezone.includes('europe/paris') || lowerTimezone.includes('cet') || 
+      lowerTimezone.includes('cest') || lowerTimezone.includes('paris')) {
+    return 'France';
+  }
+  
+  if (lowerTimezone.includes('europe/berlin') || lowerTimezone.includes('berlin')) {
+    return 'Germany';
+  }
+  
+  if (lowerTimezone.includes('europe/madrid') || lowerTimezone.includes('madrid')) {
+    return 'Spain';
+  }
+  
+  if (lowerTimezone.includes('europe/rome') || lowerTimezone.includes('rome')) {
+    return 'Italy';
+  }
+  
+  // Asia Pacific
+  if (lowerTimezone.includes('asia/tokyo') || lowerTimezone.includes('tokyo')) {
+    return 'Japan';
+  }
+  
+  if (lowerTimezone.includes('australia/sydney') || lowerTimezone.includes('australia/melbourne') ||
+      lowerTimezone.includes('sydney') || lowerTimezone.includes('melbourne')) {
+    return 'Australia';
+  }
+  
+  if (lowerTimezone.includes('asia/shanghai') || lowerTimezone.includes('asia/beijing') ||
+      lowerTimezone.includes('shanghai') || lowerTimezone.includes('beijing')) {
+    return 'China';
+  }
+  
+  if (lowerTimezone.includes('asia/kolkata') || lowerTimezone.includes('asia/mumbai') ||
+      lowerTimezone.includes('kolkata') || lowerTimezone.includes('mumbai')) {
+    return 'India';
+  }
+  
+  // Default to US if we can't determine
+  console.warn(`Unknown timezone: ${timezone}, defaulting to United States`);
+  return 'United States';
+}

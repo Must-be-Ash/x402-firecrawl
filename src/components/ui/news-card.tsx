@@ -35,10 +35,8 @@ export default function NewsCard({
   imageUrl,
   onClick,
 }: NewsCardProps) {
-  // Use summary as the headline since it contains the actual news content
-  // The headline often contains generic page titles like "Today's headlines from..."
-  const actualHeadline = cleanHeadline(summary);
-  const cleanedHeadline = actualHeadline;
+  // Use the original headline as the main title, but clean it up
+  const cleanedHeadline = cleanHeadline(headline);
   
   const handleClick = () => {
     if (onClick) {
@@ -50,7 +48,7 @@ export default function NewsCard({
 
   return (
     <article
-      className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer border border-gray-200 overflow-hidden min-h-[400px] flex flex-col"
+      className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer border border-gray-200 min-h-[350px] flex flex-col"
       onClick={handleClick}
       role="button"
       tabIndex={0}
@@ -101,9 +99,9 @@ export default function NewsCard({
           )}
         </div>
 
-        <h2 className="text-lg font-bold text-gray-900 mb-4 line-clamp-6 leading-tight flex-1">
-          {cleanedHeadline}
-        </h2>
+        <p className="text-gray-800 text-base font-medium leading-relaxed mb-4 flex-1">
+          {summary}
+        </p>
 
         <div className="flex items-center justify-between mt-auto">
           <button
