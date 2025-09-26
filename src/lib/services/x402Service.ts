@@ -188,6 +188,9 @@ async function searchNewsWithX402Fetch(query: string, options?: {
   const searchOptions = {
     query,
     limit: Math.min(options?.limit || 20, 20), // Increase to 20 to get more results before filtering
+    sources: ['news'], // Focus on news-specific results as per Firecrawl docs
+    tbs: 'qdr:d', // Past 24 hours for recent news (per Firecrawl docs)
+    timeout: 30000, // 30 second timeout for reliability (per Firecrawl docs)
     // X402 endpoint expects location as a string (country code), not object
     ...(locationInfo ? {
       location: locationInfo.country
@@ -318,41 +321,41 @@ export function generateNewsQuery(date: string, timezone: string = 'UTC'): strin
   const country = locationInfo.country;
   
   if (daysDiff === 0) {
-    // Today's news - broader search with quality news sources
+    // Today's news - use broader news-focused queries with Firecrawl's news sources
     if (country === 'CA') {
-      query = `(site:cbc.ca OR site:ctvnews.ca OR site:globalnews.ca) ${locationHint}news breaking story -video -weather -sports`;
+      query = `breaking news ${locationHint}Canada -video -weather -sports`;
     } else if (country === 'US') {
-      query = `(site:cnn.com OR site:reuters.com OR site:ap.org) ${locationHint}news breaking story -video -weather`;
+      query = `breaking news ${locationHint}United States -video -weather`;
     } else if (country === 'GB') {
-      query = `(site:bbc.com OR site:reuters.com) ${locationHint}news breaking story -video -weather`;
+      query = `breaking news ${locationHint}United Kingdom -video -weather`;
     } else {
-      query = `news ${locationHint}breaking story -video -weather`;
+      query = `breaking news ${locationHint} -video -weather`;
     }
   } else if (daysDiff === -1) {
-    // Yesterday's news - broader search for recent content
+    // Yesterday's news - use recent news queries
     if (country === 'CA') {
-      query = `(site:cbc.ca OR site:globalnews.ca OR site:vancouversun.com) ${locationHint}news story -video -weather -sports`;
+      query = `news ${locationHint}Canada yesterday -video -weather -sports`;
     } else if (country === 'US') {
-      query = `(site:cnn.com OR site:reuters.com) ${locationHint}news story -video -weather`;
+      query = `news ${locationHint}United States yesterday -video -weather`;
     } else if (country === 'GB') {
-      query = `(site:bbc.com OR site:bbc.co.uk) ${locationHint}news story -video -weather`;
+      query = `news ${locationHint}United Kingdom yesterday -video -weather`;
     } else {
-      query = `news ${locationHint}story -video -weather`;
+      query = `news ${locationHint}yesterday -video -weather`;
     }
   } else if (daysDiff >= -7) {
-    // This week's news - broader but still targeted
+    // This week's news - use date-specific queries
     if (country === 'CA') {
-      query = `site:cbc.ca OR site:ctvnews.ca OR site:globalnews.ca ${locationHint}${formattedDate}`;
+      query = `news ${locationHint}Canada ${formattedDate} -video -weather`;
     } else if (country === 'US') {
-      query = `site:reuters.com OR site:ap.org ${locationHint}${formattedDate}`;
+      query = `news ${locationHint}United States ${formattedDate} -video -weather`;
     } else if (country === 'GB') {
-      query = `site:bbc.com ${locationHint}${formattedDate}`;
+      query = `news ${locationHint}United Kingdom ${formattedDate} -video -weather`;
     } else {
-      query = `news ${locationHint}${formattedDate}`;
+      query = `news ${locationHint}${formattedDate} -video -weather`;
     }
   } else {
-    // Older news - fallback to keyword search
-    query = `${locationHint}news ${formattedDate}`;
+    // Older news - fallback to keyword search with exclusions
+    query = `${locationHint}news ${formattedDate} -video -weather`;
   }
   
   console.log(`DEBUG: Generated query for date ${date} (timezone ${timezone}, country ${country}, days diff: ${daysDiff}): "${query}"`);

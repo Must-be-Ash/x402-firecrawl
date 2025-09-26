@@ -353,8 +353,26 @@ function isLowQualitySource(title: string, url: string, summary: string): boolea
     return true;
   }
   
-  // Filter out video/program pages that aren't articles
-  if (lowerUrl.includes('/video/') || lowerUrl.includes('/watch/') || lowerUrl.includes('/player/')) {
+  // Filter out video/program pages that aren't articles (but allow legitimate news sources)
+  const videoPatterns = [
+    '/video/',
+    '/watch/',
+    '/player/',
+    '/play/video/',
+    'youtube.com',
+    'youtu.be'
+  ];
+  
+  // Only filter if it's clearly a video page AND not from a legitimate news source
+  const isVideoPage = videoPatterns.some(pattern => lowerUrl.includes(pattern));
+  const isLegitimateNewsSource = lowerUrl.includes('cbc.ca') || 
+                                lowerUrl.includes('ctvnews.ca') || 
+                                lowerUrl.includes('globalnews.ca') ||
+                                lowerUrl.includes('reuters.com') ||
+                                lowerUrl.includes('bbc.com') ||
+                                lowerUrl.includes('cnn.com');
+  
+  if (isVideoPage && !isLegitimateNewsSource) {
     return true;
   }
   
