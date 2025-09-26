@@ -104,12 +104,12 @@ export default function NewsFeed({ date, timezone, onDateChange }: NewsFeedProps
                 <h1 className="text-3xl font-bold text-gray-900">
                   Daily News
                 </h1>
-                <p className="text-gray-600 mt-1">
-                  {selectedDate.toLocaleDateString(undefined, { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
+                <p className="text-gray-600 mt-1" suppressHydrationWarning>
+                  {selectedDate.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
                   })}
                 </p>
               </div>

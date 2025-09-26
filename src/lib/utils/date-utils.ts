@@ -106,158 +106,65 @@ export function generateDateRange(startDate: Date, endDate: Date): string[] {
  * Maps timezone to ISO 3166-1 alpha-2 country code and preferred languages
  */
 export function getLocationFromTimezone(timezone: string): { country: string; languages: string[]; locationHint: string } {
-  const lowerTimezone = timezone.toLowerCase();
-  
-  // North America - Canada
-  if (lowerTimezone.includes('vancouver') || lowerTimezone.includes('america/vancouver')) {
-    return { country: 'CA', languages: ['en'], locationHint: 'Vancouver Canada ' };
+  try {
+    // Validate timezone using Intl API
+    new Intl.DateTimeFormat('en', { timeZone: timezone });
+
+    // Get country code dynamically
+    const countryCode = getCountryCodeFromTimezone(timezone);
+
+    // Get default languages for country
+    const languages = getDefaultLanguagesForCountry(countryCode);
+
+    // Build location hint from timezone
+    const parts = timezone.split('/');
+    let locationHint = '';
+
+    if (parts.length >= 2) {
+      // Extract city from timezone (e.g., "America/New_York" -> "New York")
+      const city = parts[parts.length - 1].replace(/_/g, ' ');
+      const countryName = getCountryNameFromCode(countryCode);
+      locationHint = `${city} ${countryName} `;
+    } else {
+      // No city in timezone, just use country
+      locationHint = `${getCountryNameFromCode(countryCode)} `;
+    }
+
+    return { country: countryCode, languages, locationHint };
+
+  } catch {
+    console.warn(`Invalid or unknown timezone: ${timezone}, using fallback`);
+    return { country: 'US', languages: ['en'], locationHint: '' };
   }
-  
-  if (lowerTimezone.includes('toronto') || lowerTimezone.includes('america/toronto') || 
-      lowerTimezone.includes('america/montreal') || lowerTimezone.includes('america/halifax')) {
-    return { country: 'CA', languages: ['en', 'fr'], locationHint: 'Canada ' };
-  }
-  
-  if (lowerTimezone.includes('america/edmonton') || lowerTimezone.includes('america/calgary') || 
-      lowerTimezone.includes('america/winnipeg') || lowerTimezone.includes('mountain') || 
-      lowerTimezone.includes('central') && lowerTimezone.includes('canada')) {
-    return { country: 'CA', languages: ['en'], locationHint: 'Canada ' };
-  }
-  
-  // North America - United States
-  if (lowerTimezone.includes('america/new_york') || lowerTimezone.includes('america/chicago') || 
-      lowerTimezone.includes('america/denver') || lowerTimezone.includes('america/los_angeles') ||
-      lowerTimezone.includes('america/phoenix') || lowerTimezone.includes('america/anchorage') ||
-      lowerTimezone.includes('eastern') || lowerTimezone.includes('pacific') || 
-      lowerTimezone.includes('mountain') || lowerTimezone.includes('central')) {
-    return { country: 'US', languages: ['en'], locationHint: 'United States ' };
-  }
-  
-  // Europe
-  if (lowerTimezone.includes('europe/london') || lowerTimezone.includes('gmt') || 
-      lowerTimezone.includes('bst') || lowerTimezone.includes('london')) {
-    return { country: 'GB', languages: ['en'], locationHint: 'United Kingdom ' };
-  }
-  
-  if (lowerTimezone.includes('europe/paris') || lowerTimezone.includes('cet') || 
-      lowerTimezone.includes('cest') || lowerTimezone.includes('paris')) {
-    return { country: 'FR', languages: ['fr'], locationHint: 'France ' };
-  }
-  
-  if (lowerTimezone.includes('europe/berlin') || lowerTimezone.includes('berlin')) {
-    return { country: 'DE', languages: ['de'], locationHint: 'Germany ' };
-  }
-  
-  if (lowerTimezone.includes('europe/madrid') || lowerTimezone.includes('madrid')) {
-    return { country: 'ES', languages: ['es'], locationHint: 'Spain ' };
-  }
-  
-  if (lowerTimezone.includes('europe/rome') || lowerTimezone.includes('rome')) {
-    return { country: 'IT', languages: ['it'], locationHint: 'Italy ' };
-  }
-  
-  // Asia Pacific
-  if (lowerTimezone.includes('asia/tokyo') || lowerTimezone.includes('tokyo')) {
-    return { country: 'JP', languages: ['ja'], locationHint: 'Japan ' };
-  }
-  
-  if (lowerTimezone.includes('australia/sydney') || lowerTimezone.includes('australia/melbourne') ||
-      lowerTimezone.includes('sydney') || lowerTimezone.includes('melbourne')) {
-    return { country: 'AU', languages: ['en'], locationHint: 'Australia ' };
-  }
-  
-  if (lowerTimezone.includes('asia/shanghai') || lowerTimezone.includes('asia/beijing') ||
-      lowerTimezone.includes('shanghai') || lowerTimezone.includes('beijing')) {
-    return { country: 'CN', languages: ['zh'], locationHint: 'China ' };
-  }
-  
-  if (lowerTimezone.includes('asia/kolkata') || lowerTimezone.includes('asia/mumbai') ||
-      lowerTimezone.includes('kolkata') || lowerTimezone.includes('mumbai')) {
-    return { country: 'IN', languages: ['en', 'hi'], locationHint: 'India ' };
-  }
-  
-  // Default to US if we can't determine
-  console.warn(`Unknown timezone: ${timezone}, defaulting to US`);
-  return { country: 'US', languages: ['en'], locationHint: '' };
 }
 
 /**
  * Maps timezone to a human-readable location name for search queries
+ * Dynamically parses IANA timezone format (e.g., "Europe/Dublin" -> "Dublin, Ireland")
  */
 export function getLocationNameFromTimezone(timezone: string): string {
-  const lowerTimezone = timezone.toLowerCase();
-  
-  // North America - Canada
-  if (lowerTimezone.includes('vancouver') || lowerTimezone.includes('america/vancouver')) {
-    return 'Vancouver, Canada';
-  }
-  
-  if (lowerTimezone.includes('toronto') || lowerTimezone.includes('america/toronto') || 
-      lowerTimezone.includes('america/montreal') || lowerTimezone.includes('america/halifax')) {
-    return 'Canada';
-  }
-  
-  if (lowerTimezone.includes('america/edmonton') || lowerTimezone.includes('america/calgary') || 
-      lowerTimezone.includes('america/winnipeg') || lowerTimezone.includes('mountain') || 
-      lowerTimezone.includes('central') && lowerTimezone.includes('canada')) {
-    return 'Canada';
-  }
-  
-  // North America - United States
-  if (lowerTimezone.includes('america/new_york') || lowerTimezone.includes('america/chicago') || 
-      lowerTimezone.includes('america/denver') || lowerTimezone.includes('america/los_angeles') ||
-      lowerTimezone.includes('america/phoenix') || lowerTimezone.includes('america/anchorage') ||
-      lowerTimezone.includes('eastern') || lowerTimezone.includes('pacific') || 
-      lowerTimezone.includes('mountain') || lowerTimezone.includes('central')) {
+  try {
+    // Validate timezone
+    new Intl.DateTimeFormat('en', { timeZone: timezone });
+
+    // Parse timezone to extract city and country
+    const parts = timezone.split('/');
+    const countryCode = getCountryCodeFromTimezone(timezone);
+    const countryName = getCountryNameFromCode(countryCode);
+
+    if (parts.length >= 2) {
+      // Has city component: "Europe/Dublin" -> "Dublin, Ireland"
+      const city = parts[parts.length - 1].replace(/_/g, ' ');
+      return `${city}, ${countryName}`;
+    } else {
+      // No city, just country: "GMT" -> "United Kingdom"
+      return countryName;
+    }
+
+  } catch {
+    console.warn(`Invalid or unknown timezone: ${timezone}, defaulting to United States`);
     return 'United States';
   }
-  
-  // Europe
-  if (lowerTimezone.includes('europe/london') || lowerTimezone.includes('gmt') || 
-      lowerTimezone.includes('bst') || lowerTimezone.includes('london')) {
-    return 'United Kingdom';
-  }
-  
-  if (lowerTimezone.includes('europe/paris') || lowerTimezone.includes('cet') || 
-      lowerTimezone.includes('cest') || lowerTimezone.includes('paris')) {
-    return 'France';
-  }
-  
-  if (lowerTimezone.includes('europe/berlin') || lowerTimezone.includes('berlin')) {
-    return 'Germany';
-  }
-  
-  if (lowerTimezone.includes('europe/madrid') || lowerTimezone.includes('madrid')) {
-    return 'Spain';
-  }
-  
-  if (lowerTimezone.includes('europe/rome') || lowerTimezone.includes('rome')) {
-    return 'Italy';
-  }
-  
-  // Asia Pacific
-  if (lowerTimezone.includes('asia/tokyo') || lowerTimezone.includes('tokyo')) {
-    return 'Japan';
-  }
-  
-  if (lowerTimezone.includes('australia/sydney') || lowerTimezone.includes('australia/melbourne') ||
-      lowerTimezone.includes('sydney') || lowerTimezone.includes('melbourne')) {
-    return 'Australia';
-  }
-  
-  if (lowerTimezone.includes('asia/shanghai') || lowerTimezone.includes('asia/beijing') ||
-      lowerTimezone.includes('shanghai') || lowerTimezone.includes('beijing')) {
-    return 'China';
-  }
-  
-  if (lowerTimezone.includes('asia/kolkata') || lowerTimezone.includes('asia/mumbai') ||
-      lowerTimezone.includes('kolkata') || lowerTimezone.includes('mumbai')) {
-    return 'India';
-  }
-  
-  // Default to US if we can't determine
-  console.warn(`Unknown timezone: ${timezone}, defaulting to United States`);
-  return 'United States';
 }
 
 /**
@@ -294,6 +201,60 @@ export function getLocationIdentifier(timezone: string): string {
     // Fallback to country code only
     return getCountryCodeFromTimezone(timezone);
   }
+}
+
+/**
+ * Maps country code to default languages
+ */
+function getDefaultLanguagesForCountry(countryCode: string): string[] {
+  const languageMap: Record<string, string[]> = {
+    'US': ['en'], 'CA': ['en', 'fr'], 'GB': ['en'], 'IE': ['en'],
+    'AU': ['en'], 'NZ': ['en'],
+    'FR': ['fr'], 'BE': ['fr', 'nl'], 'CH': ['de', 'fr', 'it'],
+    'DE': ['de'], 'AT': ['de'],
+    'ES': ['es'], 'MX': ['es'], 'AR': ['es'], 'CL': ['es'],
+    'IT': ['it'],
+    'NL': ['nl'],
+    'SE': ['sv'], 'NO': ['no'], 'DK': ['da'], 'FI': ['fi'],
+    'PL': ['pl'], 'CZ': ['cs'], 'HU': ['hu'], 'GR': ['el'],
+    'PT': ['pt'], 'BR': ['pt'],
+    'RU': ['ru'],
+    'TR': ['tr'],
+    'JP': ['ja'], 'KR': ['ko'], 'CN': ['zh'], 'HK': ['zh', 'en'],
+    'SG': ['en', 'zh'], 'TH': ['th'], 'ID': ['id'], 'PH': ['en', 'tl'],
+    'IN': ['en', 'hi'], 'PK': ['en', 'ur'],
+    'AE': ['ar', 'en'], 'SA': ['ar'],
+    'IL': ['he', 'ar', 'en'],
+    'EG': ['ar'], 'ZA': ['en', 'af'], 'NG': ['en']
+  };
+  return languageMap[countryCode] || ['en'];
+}
+
+/**
+ * Maps country code to country name
+ */
+function getCountryNameFromCode(countryCode: string): string {
+  const countryNames: Record<string, string> = {
+    'US': 'United States', 'CA': 'Canada', 'GB': 'United Kingdom', 'IE': 'Ireland',
+    'AU': 'Australia', 'NZ': 'New Zealand',
+    'FR': 'France', 'BE': 'Belgium', 'CH': 'Switzerland',
+    'DE': 'Germany', 'AT': 'Austria',
+    'ES': 'Spain', 'MX': 'Mexico', 'AR': 'Argentina', 'CL': 'Chile',
+    'IT': 'Italy',
+    'NL': 'Netherlands',
+    'SE': 'Sweden', 'NO': 'Norway', 'DK': 'Denmark', 'FI': 'Finland',
+    'PL': 'Poland', 'CZ': 'Czech Republic', 'HU': 'Hungary', 'GR': 'Greece',
+    'PT': 'Portugal', 'BR': 'Brazil',
+    'RU': 'Russia',
+    'TR': 'Turkey',
+    'JP': 'Japan', 'KR': 'South Korea', 'CN': 'China', 'HK': 'Hong Kong',
+    'SG': 'Singapore', 'TH': 'Thailand', 'ID': 'Indonesia', 'PH': 'Philippines',
+    'IN': 'India', 'PK': 'Pakistan',
+    'AE': 'United Arab Emirates', 'SA': 'Saudi Arabia',
+    'IL': 'Israel',
+    'EG': 'Egypt', 'ZA': 'South Africa', 'NG': 'Nigeria'
+  };
+  return countryNames[countryCode] || 'United States';
 }
 
 /**
