@@ -7,7 +7,7 @@ A location-aware news aggregator that **only activates when visited**, demonstra
 ## Key Technologies
 
 - **[x402 Protocol](https://www.x402.org/)**: HTTP-native micropayments enabling pay-per-use APIs
-- **[Firecrawl](https://www.firecrawl.dev/)**: Web scraping API with x402 payment support
+- **[Firecrawl v2](https://www.firecrawl.dev/)**: Web scraping API with x402 payment support (using news-focused search)
 - **[Coinbase Developer Platform](https://docs.cdp.coinbase.com/)**: Wallet and USDC payments on Base
 - **Next.js 15 + MongoDB**: Full-stack framework with intelligent caching
 
@@ -44,7 +44,7 @@ X402_PRIVATE_KEY=0x1234...your_private_key
 # Fund wallet with USDC on Base: https://portal.cdp.coinbase.com/products/faucet
 
 # Firecrawl API
-FIRECRAWL_API_BASE_URL=https://api.firecrawl.dev/v1/x402/search
+FIRECRAWL_API_BASE_URL=https://api.firecrawl.dev/v2/x402/search
 FIRECRAWL_API_KEY=fc-...your_api_key
 # Get key at: https://www.firecrawl.dev/
 ```
@@ -173,9 +173,10 @@ The system **never hardcodes locations**—it dynamically parses IANA timezones:
 ### x402 Payment Flow
 
 ```typescript
-// x402Service.ts - Simplified flow
+// x402Service.ts - Firecrawl v2 with news sources
 
-1. Initial Request to Firecrawl
+1. Initial Request to Firecrawl v2
+   → Body: { query, limit: 30, sources: ["news"] }
    → Response: 402 Payment Required
    → Payment requirements: { amount, payTo, asset, network }
 
@@ -190,7 +191,8 @@ The system **never hardcodes locations**—it dynamically parses IANA timezones:
 4. Retry Request with Payment
    → Firecrawl verifies signature
    → Settles payment on Base blockchain
-   → Returns scraped news data
+   → Returns news-focused search results
+   → Response format: { success: true, data: { news: [...], web: [...] } }
 ```
 
 ### Cache Strategy (Cost Optimization)
@@ -301,6 +303,20 @@ http://localhost:3000/?timezone=Asia/Tokyo
 → Shows: Japanese news sources
 ```
 
+## Firecrawl v2 Integration
+
+This app uses Firecrawl v2 with news-focused search for better results:
+
+**Key Features**:
+- **`sources: ["news"]`** parameter for news-specific results from real news sites
+- **Response format**: `{ success: true, data: { news: [...], web: [...], images: [...] } }`
+- **Simplified requests**: No need for `origin`, `categories`, or `parsers` in basic calls
+- **News metadata**: Each result includes `title`, `url`, `snippet`, `date`, and `imageUrl`
+
+**Comparison**:
+- v1 with `web` sources → Generic web results (blogs, forums, etc.)
+- v2 with `news` sources → Curated news from legitimate news outlets (NY Times, BBC, Reuters, etc.)
+
 ## Proof of Concept Insights
 
 This demonstrates how x402 enables:
@@ -310,6 +326,7 @@ This demonstrates how x402 enables:
 3. **Global Scalability**: Works for any location automatically
 4. **Intelligent Caching**: Subsequent visitors reuse cached data
 5. **Transparent Micropayments**: Sub-cent API costs with blockchain settlement
+6. **Quality News Sources**: Firecrawl v2 with `news` sources provides curated, high-quality results
 
 Traditional APIs require subscriptions even during idle time. x402 enables pay-per-use consumption, making dormant infrastructure economically viable.
 

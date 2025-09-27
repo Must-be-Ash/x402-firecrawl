@@ -64,6 +64,9 @@ cast wallet new
 # Sign up at https://www.firecrawl.dev/
 # Generate API key from dashboard
 FIRECRAWL_API_KEY=fc-...your_key
+FIRECRAWL_API_BASE_URL=https://api.firecrawl.dev/v2/x402/search
+
+# v2 API uses news-focused search for better results
 ```
 
 ---
@@ -139,15 +142,21 @@ npm run dev
 ### Understanding x402 Flow
 
 ```bash
-# Normal successful flow:
-1. Request to Firecrawl → 402 Payment Required (THIS IS CORRECT!)
+# Normal successful flow (Firecrawl v2):
+1. Request to Firecrawl v2 with sources:["news"] → 402 Payment Required (THIS IS CORRECT!)
 2. Create EIP-712 signature → Sign payment authorization
 3. Retry with X-PAYMENT header → 200 OK with news data
+4. Response: { success: true, data: { news: [...], web: [...] } }
 
 # What 402 means:
 - NOT an error!
 - Triggers payment creation
 - Expected behavior in x402 protocol
+
+# v2 Improvements:
+- Uses sources:["news"] for better quality news results
+- Simpler request structure
+- News-specific response format
 ```
 
 ### Check Wallet Balance
@@ -547,6 +556,26 @@ rm tsconfig.tsbuildinfo
 # Should have: "@/*": ["./src/*"]
 ```
 
+### Problem: Using Old Firecrawl v1 Endpoint
+
+```bash
+# If you see errors about API format or missing news data:
+
+# 1. Check your .env.local endpoint
+cat .env.local | grep FIRECRAWL_API_BASE_URL
+# Should be: https://api.firecrawl.dev/v2/x402/search
+
+# 2. Update if needed
+sed -i '' 's|v1/x402/search|v2/x402/search|g' .env.local
+
+# 3. Restart dev server
+pkill -f "next dev" && npm run dev
+
+# 4. Clear cache and test
+npx tsx src/scripts/clear-cache.ts --all
+npx tsx src/scripts/test-location.ts "America/New_York"
+```
+
 ### Problem: Build Failures
 
 ```bash
@@ -599,10 +628,15 @@ async function makeCustomPayment(endpoint: string) {
 // In newsService.ts, modify fetchFreshNews:
 const response = await searchNews(query, {
   limit: 20,
-  sources: ['news', 'your-custom-source'],
+  sources: ['news'],  // v2 API: 'news' for news-focused results
   maxAge: 172800000,
   timezone: timezone
 });
+
+// Available sources in v2:
+// - 'news': News-focused results (recommended for this app)
+// - 'web': General web results
+// - 'images': Image search results
 ```
 
 ### Implement Auto-Refresh

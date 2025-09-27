@@ -25,23 +25,28 @@ Parse Response → Save to MongoDB → Return to Frontend
 | `src/lib/context/news-context.tsx` | React Context managing date/timezone state, triggers API calls |
 | `src/app/api/news/route.ts` | API endpoint: `GET /api/news?date=YYYY-MM-DD&timezone=...` |
 | `src/lib/services/newsService.ts` | Business logic: cache checking, location extraction, orchestration |
-| `src/lib/services/x402Service.ts` | x402 payment creation (EIP-712 signatures), Firecrawl API calls |
+| `src/lib/services/x402Service.ts` | x402 payment creation (EIP-712 signatures), Firecrawl v2 API calls with news sources |
 | `src/lib/utils/date-utils.ts` | **Dynamic location extraction** from IANA timezones (e.g., `Europe/Dublin` → `IE-Dublin`) |
 | `src/lib/db/operations/newsOperations.ts` | MongoDB operations: save/retrieve cached news by `(date, timezone, location)` |
 | `src/config/x402.ts` | x402 configuration (networks, endpoints, payment limits) |
 
 ### x402 Payment Flow
 
-The application implements the x402 protocol for micropayments:
+The application implements the x402 protocol for micropayments with Firecrawl v2:
 
-1. **Initial request** to Firecrawl returns `402 Payment Required` with payment requirements
+1. **Initial request** to Firecrawl v2 with `{ query, limit, sources: ["news"] }` returns `402 Payment Required`
 2. **Create EIP-712 signature** for USDC `transferWithAuthorization` message using `viem`
 3. **Encode payment header** as base64 JSON payload with signature + authorization
-4. **Retry request** with `X-PAYMENT` header → Firecrawl verifies → settles on Base → returns data
+4. **Retry request** with `X-PAYMENT` header → Firecrawl verifies → settles on Base → returns news data
 
 Two payment approaches (fallback pattern):
 - **Primary**: `x402-fetch` library (automatic payment handling via `wrapFetchWithPayment`)
 - **Fallback**: Manual EIP-712 signing following x402 standards (see `makePaymentRequestX402Standard`)
+
+**v2 API Features**:
+- Uses `sources: ["news"]` parameter for news-focused results (better quality than generic web search)
+- Response structure: `{ success: true, data: { news: [...], web: [...], images: [...] } }`
+- Simplified request format (no `origin`, `categories`, or `parsers` needed for basic calls)
 
 ### Location Detection (Fully Dynamic)
 
@@ -105,7 +110,7 @@ MONGODB_DB_NAME=news-app
 
 # x402 Payment (admin wallet pays for API calls)
 X402_PRIVATE_KEY=0x...your_private_key
-FIRECRAWL_API_BASE_URL=https://api.firecrawl.dev/v1/x402/search
+FIRECRAWL_API_BASE_URL=https://api.firecrawl.dev/v2/x402/search
 FIRECRAWL_API_KEY=fc-...your_api_key
 FIRECRAWL_NETWORK=base  # Firecrawl requires mainnet USDC (base or base-sepolia)
 
