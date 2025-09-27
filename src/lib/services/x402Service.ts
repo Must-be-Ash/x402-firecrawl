@@ -181,18 +181,18 @@ async function searchNewsWithX402Fetch(query: string, options?: {
     BigInt(1.0 * 10 ** 6) // Allow up to $1.00 USDC payments
   );
   
-  // Get dynamic location from timezone
-  const locationInfo = options?.timezone ? getLocationFromTimezone(options.timezone) : null;
-  
-  // Enhanced search options for better news targeting
+  // V2 search options structure (minimal for 402 endpoint)
   const searchOptions = {
     query,
-    limit: Math.min(options?.limit || 30, 30), // Increase to 30 to get more results before filtering
-    // X402 endpoint expects location as a string (country code), not object
-    ...(locationInfo ? {
-      location: locationInfo.country
+    limit: Math.min(options?.limit || 30, 30),
+    // Use 'news' source for news-focused results (per v2 docs)
+    sources: options?.sources || ['news'],
+    ...(options?.maxAge ? {
+      scrapeOptions: {
+        onlyMainContent: true,
+        maxAge: options.maxAge
+      }
     } : {})
-    // Note: v1 x402 endpoint doesn't support 'sources' parameter
   };
 
   console.log('Searching with x402-fetch for query:', query);
@@ -265,16 +265,17 @@ export async function searchNews(query: string, options?: {
     failureCount++;
     lastFailureTime = now;
     
-    // Get dynamic location from timezone for fallback
-    const locationInfo = options?.timezone ? getLocationFromTimezone(options.timezone) : null;
-    
-    // Fall back to manual approach - use same enhanced structure
+    // Fall back to manual approach - use V2 structure (minimal)
     const searchOptions = {
       query,
-      limit: Math.min(options?.limit || 10, 10), // Max 10 for x402 endpoint
-      // X402 endpoint expects location as a string (country code), not object
-      ...(locationInfo ? {
-        location: locationInfo.country
+      limit: Math.min(options?.limit || 10, 10),
+      // Use 'news' source for news-focused results (per v2 docs)
+      sources: options?.sources || ['news'],
+      ...(options?.maxAge ? {
+        scrapeOptions: {
+          onlyMainContent: true,
+          maxAge: options.maxAge
+        }
       } : {})
     };
     

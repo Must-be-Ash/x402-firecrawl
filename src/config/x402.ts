@@ -1,6 +1,6 @@
 export const x402Config = {
   // Firecrawl API endpoint
-  firecrawlEndpoint: process.env.FIRECRAWL_API_BASE_URL || 'https://api.firecrawl.dev/v1/x402/search',
+  firecrawlEndpoint: process.env.FIRECRAWL_API_BASE_URL || 'https://api.firecrawl.dev/v2/x402/search',
   
   // Payment configuration
   payment: {
@@ -25,15 +25,13 @@ export const x402Config = {
     maxDailyCost: parseFloat(process.env.MAX_DAILY_COST || '10'),
   },
   
-  // Firecrawl search configuration
+  // Firecrawl v2 search configuration (minimal for 402 endpoint)
   search: {
     defaultOptions: {
-      sources: ['web'],
       limit: 20,
       scrapeOptions: {
         onlyMainContent: true,
-        maxAge: 172800000, // 2 days
-        formats: ['summary']
+        maxAge: 172800000 // 2 days
       }
     },
   },

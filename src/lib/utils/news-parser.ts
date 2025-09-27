@@ -25,9 +25,38 @@ export function parseFirecrawlResponse(
 
   let webResults: FirecrawlWebResult[] = [];
 
-  // Handle regular Firecrawl format: data.web array
+  // Handle Firecrawl v2 format: data.web or data.news arrays
   const data = typedResponse.data;
-  if (data && typeof data === 'object' && 'web' in data && Array.isArray((data as { web: unknown[] }).web)) {
+
+  // Try news array first (v2 news-specific results)
+  if (data && typeof data === 'object' && 'news' in data && Array.isArray((data as { news: unknown[] }).news)) {
+    const newsItems = (data as { news: unknown[] }).news;
+    console.log('DEBUG: Using Firecrawl v2 news array format');
+    // Convert news format to web format
+    webResults = newsItems.map((item: unknown) => {
+      const newsItem = item as Record<string, unknown>;
+      return {
+        title: (newsItem.title as string) || '',
+        description: (newsItem.snippet as string) || '',
+        url: (newsItem.url as string) || '',
+        markdown: '',
+        html: '',
+        rawHtml: '',
+        summary: (newsItem.snippet as string) || '',
+        links: [],
+        screenshot: newsItem.imageUrl as string | undefined,
+        metadata: {
+          title: (newsItem.title as string) || '',
+          description: (newsItem.snippet as string) || '',
+          sourceURL: (newsItem.url as string) || '',
+          statusCode: 200,
+          publishedDate: newsItem.date as string | undefined
+        }
+      } as FirecrawlWebResult;
+    });
+  }
+  // Fallback to web array
+  else if (data && typeof data === 'object' && 'web' in data && Array.isArray((data as { web: unknown[] }).web)) {
     webResults = (data as { web: FirecrawlWebResult[] }).web;
     console.log('DEBUG: Using regular Firecrawl format with data.web array');
   }
@@ -122,9 +151,10 @@ function parseFirecrawlWebResult(item: FirecrawlWebResult): NewsArticle {
   // Handle both regular Firecrawl format and x402 format
   const title = item.title;
   const url = item.url;
-  const summary = item.summary || item.description; // x402 uses 'description' instead of 'summary'
-  const description = item.description;
-  
+  // V2 API uses 'description' instead of 'summary'
+  const summary = item.summary || item.description || (item.metadata?.description as string);
+  const description = item.description || summary;
+
   // Validate required fields
   if (!title || !url || !summary) {
     throw new Error(`Missing required fields: title=${!!title}, url=${!!url}, summary/description=${!!summary}`);
