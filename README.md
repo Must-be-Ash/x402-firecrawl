@@ -1,5 +1,7 @@
 # Dormant News Website - x402 Proof of Concept
 
+> **Outdated, not maintained.** This is an x402 v1 example. x402 v2 has since been released; we recommend updating to v2 ([migration guide](https://docs.x402.org/guides/migration-v1-to-v2)).
+
 A location-aware news aggregator that **only activates when visited**, demonstrating zero idle costs through x402 micropayments. The system detects visitor location, triggers pay-per-use Firecrawl API calls via x402, caches results, and incurs costs only during actual usage.
 
 **Live Demo Concept**: When a Dublin visitor arrives → x402 payment triggers → Firecrawl scrapes Ireland news → cached for next visitor → no ongoing costs.
